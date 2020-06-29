@@ -1,0 +1,91 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="3.5" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>9.0.30729</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{316EE3C8-7960-43AA-B148-D20475ECD253}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>WinFormsCodeBox</RootNamespace>
+    <AssemblyName>WinFormsCodeBox</AssemblyName>
+    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core">
+      <RequiredTargetFramework>3.5</RequiredTargetFramework>
+    </Reference>
+    <Reference Include="System.Xml.Linq">
+      <RequiredTargetFramework>3.5</RequiredTargetFramework>
+    </Reference>
+    <Reference Include="System.Data.DataSetExtensions">
+      <RequiredTargetFramework>3.5</RequiredTargetFramework>
+    </Reference>
+    <Reference Include="System.Data" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="DecorationCollection.cs" />
+    <Compile Include="DecorationList.cs" />
+    <Compile Include="Decorations\Decoration.cs" />
+    <Compile Include="Decorations\DecorationScheme.cs" />
+    <Compile Include="Decorations\DecorationSchemes.cs" />
+    <Compile Include="Decorations\DoubleQuotedDecoration.cs" />
+    <Compile Include="Decorations\DoubleRegexDecoration.cs" />
+    <Compile Include="Decorations\EDecorationType.cs" />
+    <Compile Include="Decorations\ExplicitDecoration.cs" />
+    <Compile Include="Decorations\LineDecoration.cs" />
+    <Compile Include="Decorations\MultiExplicitDecoration.cs" />
+    <Compile Include="Decorations\MultiLineDecoration.cs" />
+    <Compile Include="Decorations\MultiRegexDecoration.cs" />
+    <Compile Include="Decorations\MultiRegexWordDecoration.cs" />
+    <Compile Include="Decorations\MultiStringDecoration.cs" />
+    <Compile Include="Decorations\RegexDecoration.cs" />
+    <Compile Include="Decorations\RegexMatchDecoration.cs" />
+    <Compile Include="Decorations\StringDecoration.cs" />
+    <Compile Include="PreparedDecorationCollection.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="StringDifferenceRange.cs" />
+    <Compile Include="TextDelta.cs" />
+    <Compile Include="WinFormsCodeBox.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Service Include="{94E38DFF-614B-4cbd-B67C-F211BB35CE8B}" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TextUtils\TextUtils.csproj">
+      <Project>{A34D719E-CF6E-4062-877D-42F21859CD61}</Project>
+      <Name>TextUtils</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>
