@@ -1,249 +1,32 @@
-
-To implement this in your Spring Boot application, you can follow these steps:
-
-Create a Base Workflow Class:
-The base class will have the arcEvent field and a HashMap to represent runWorkflow.
-
-Create Concrete Workflow Classes:
-Each concrete class will inherit from the base class and can have its specific properties or methods if needed.
-
-Here's an example of how you can structure this:
-
-Step 1: Define the Base Workflow Class
-java
-Copy code
-import java.util.HashMap;
-
-public abstract class BaseWorkflow {
-    private String arcEvent;
-    private HashMap<String, Object> runWorkflow;
-
-    // Constructor
-    public BaseWorkflow(String arcEvent, HashMap<String, Object> runWorkflow) {
-        this.arcEvent = arcEvent;
-        this.runWorkflow = runWorkflow;
-    }
-
-    // Getters and Setters
-    public String getArcEvent() {
-        return arcEvent;
-    }
-
-    public void setArcEvent(String arcEvent) {
-        this.arcEvent = arcEvent;
-    }
-
-    public HashMap<String, Object> getRunWorkflow() {
-        return runWorkflow;
-    }
-
-    public void setRunWorkflow(HashMap<String, Object> runWorkflow) {
-        this.runWorkflow = runWorkflow;
-    }
-
-    // Abstract method to be implemented by subclasses
-    public abstract void execute();
-}
-Step 2: Create Concrete Workflow Classes
-Example 1: DatabricksEtlWorkflow
-java
-Copy code
-import java.util.HashMap;
-
-public class DatabricksEtlWorkflow extends BaseWorkflow {
-
-    public DatabricksEtlWorkflow(String arcEvent, HashMap<String, Object> runWorkflow) {
-        super(arcEvent, runWorkflow);
-    }
-
-    @Override
-    public void execute() {
-        // Implementation specific to Databricks ETL
-        System.out.println("Executing Databricks ETL Workflow with event: " + getArcEvent());
-        // Add logic to handle the workflow
-    }
-}
-Example 2: PbiRefreshCompleteWorkflow
-java
-Copy code
-import java.util.HashMap;
-
-public class PbiRefreshCompleteWorkflow extends BaseWorkflow {
-
-    public PbiRefreshCompleteWorkflow(String arcEvent, HashMap<String, Object> runWorkflow) {
-        super(arcEvent, runWorkflow);
-    }
-
-    @Override
-    public void execute() {
-        // Implementation specific to PBI Refresh Complete
-        System.out.println("Executing PBI Refresh Complete Workflow with event: " + getArcEvent());
-        // Add logic to handle the workflow
-    }
-}
-Step 3: Using the Workflow
-You can now instantiate and use these workflows in your application:
-
-java
-Copy code
-public class WorkflowExecutor {
-    public static void main(String[] args) {
-        HashMap<String, Object> databricksParams = new HashMap<>();
-        databricksParams.put("clusterName", "cluster1");
-        // Add other params
-
-        BaseWorkflow databricksWorkflow = new DatabricksEtlWorkflow("ARISK_SOURCE_KEY_READY", databricksParams);
-        databricksWorkflow.execute();
-
-        HashMap<String, Object> pbiParams = new HashMap<>();
-        pbiParams.put("jobId", 12345);
-        // Add other params
-
-        BaseWorkflow pbiWorkflow = new PbiRefreshCompleteWorkflow("CUBE_SOURCE_KEY_REFRESHED", pbiParams);
-        pbiWorkflow.execute();
-    }
-}
-This setup will allow you to easily manage and extend your workflows, with each specific workflow having its own implementation and parameters while sharing common behavior defined in the base class.
-
-You said:
-I need to be able to read these values from the configuration in the screeshot
-ChatGPT said:
-ChatGPT
-Memory updated
-To read the workflow configuration values from the YAML file in your Spring Boot application, you can follow these steps:
-
-Create a Configuration Class:
-This class will map the YAML structure into a Java object using Spring Boot's @ConfigurationProperties.
-
-Bind the YAML Configuration to the Class:
-Use the @ConfigurationProperties annotation to bind the YAML properties to the fields in the configuration class.
-
-Inject the Configuration Class:
-You can then inject this configuration class wherever you need it in your application.
-
-Step 1: Define the Configuration Class
-Here’s how you can define the configuration class:
-
-java
-Copy code
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
-@Configuration
-@ConfigurationProperties(prefix = "messagebroker")
-public class WorkflowConfig {
-
-    private Map<String, Workflow> workflows;
-
-    public Map<String, Workflow> getWorkflows() {
-        return workflows;
-    }
-
-    public void setWorkflows(Map<String, Workflow> workflows) {
-        this.workflows = workflows;
-    }
-
-    public static class Workflow {
-        private String arcEvent;
-        private Map<String, Object> runWorkflow;
-
-        public String getArcEvent() {
-            return arcEvent;
-        }
-
-        public void setArcEvent(String arcEvent) {
-            this.arcEvent = arcEvent;
-        }
-
-        public Map<String, Object> getRunWorkflow() {
-            return runWorkflow;
-        }
-
-        public void setRunWorkflow(Map<String, Object> runWorkflow) {
-            this.runWorkflow = runWorkflow;
-        }
-    }
-}
-Step 2: Bind the YAML Configuration
-The structure of your YAML file will be automatically mapped to this configuration class. The YAML shown in your screenshot should look like this in the application.yaml:
-
-yaml
-Copy code
-messagebroker:
-  workflows:
-    databricks-etl:
-      arc-event: "ARISK_SOURCE_KEY_READY"
-      run-workflow:
-        databricks-cluster: "clusterName"
-        databricks-host: "https://adb-3624359527412727.7.azuredatabricks.net/api/2.1/"
-        databricks-token: "apiToken"
-        params: ["business_date", "source_system", "data_context", "fo_business_area", "risk_run_type", "update_time"]
-    pbi-refresh-complete:
-      arc-event: "CUBE_SOURCE_KEY_REFRESHED"
-      run-workflow:
-        databricks-cluster: "clusterName"
-        databricks-host: "https://adb-3624359527412727.7.azuredatabricks.net/api/2.1/"
-        job-id: 103533
-        params: ["business_date", "partitionKeys"]
-Step 3: Inject and Use the Configuration
-You can now inject this configuration class into your service or component where you need to use the workflow data:
-
-java
-Copy code
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
-@Service
-public class WorkflowService {
+@Component
+public class WorkflowFactory {
 
     private final WorkflowConfig workflowConfig;
 
     @Autowired
-    public WorkflowService(WorkflowConfig workflowConfig) {
+    public WorkflowFactory(WorkflowConfig workflowConfig) {
         this.workflowConfig = workflowConfig;
     }
 
-    public void executeWorkflow(String workflowName) {
-        WorkflowConfig.Workflow workflow = workflowConfig.getWorkflows().get(workflowName);
-        if (workflow != null) {
-            System.out.println("Executing workflow: " + workflowName);
-            System.out.println("ARC Event: " + workflow.getArcEvent());
-            System.out.println("Run Workflow: " + workflow.getRunWorkflow());
-            // Add logic to execute the workflow
-        } else {
-            System.out.println("No workflow found for: " + workflowName);
+    public BaseWorkflow createWorkflow(String workflowName) {
+        WorkflowConfig.Workflow workflowConfigData = workflowConfig.getWorkflows().get(workflowName);
+
+        if (workflowConfigData == null) {
+            throw new IllegalArgumentException("No workflow configuration found for: " + workflowName);
+        }
+
+        switch (workflowName) {
+            case "databricks-etl":
+                return new DatabricksEtlWorkflow(workflowConfigData.getArcEvent(), workflowConfigData.getRunWorkflow());
+            case "pbi-refresh-complete":
+                return new PbiRefreshCompleteWorkflow(workflowConfigData.getArcEvent(), workflowConfigData.getRunWorkflow());
+            default:
+                throw new UnsupportedOperationException("Unknown workflow: " + workflowName);
         }
     }
 }
-Step 4: Using the Service
-You can now call the executeWorkflow method from your controller or other parts of your application:
-
-java
-Copy code
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
-
-@RestController
-public class WorkflowController {
-
-    private final WorkflowService workflowService;
-
-    @Autowired
-    public WorkflowController(WorkflowService workflowService) {
-        this.workflowService = workflowService;
-    }
-
-    @GetMapping("/execute-databricks-etl")
-    public void executeDatabricksEtl() {
-        workflowService.executeWorkflow("databricks-etl");
-    }
-
-    @GetMapping("/execute-pbi-refresh-complete")
-    public void executePbiRefreshComplete() {
-        workflowService.executeWorkflow("pbi-refresh-complete");
-    }
-}
-This setup allows you to manage your workflows through configuration in the YAML file, and your Spring Boot application will automatically map these configurations into your Java objects, which you can use throughout your application.
