@@ -4,23 +4,22 @@ $logFileUrl = "http://localhost/actuator/logfile"
 # Function to fetch and display the log file content
 function Fetch-LogFile {
     try {
-        # Get the content of the log file
-        $logContent = Invoke-RestMethod -Uri $logFileUrl -ErrorAction Stop
-        
+        # Get the content of the log file using Invoke-WebRequest
+        $response = Invoke-WebRequest -Uri $logFileUrl -UseBasicParsing
+        $logContent = $response.Content
+
         # Clear the console
         Clear-Host
-        
+
         # Display the content with color-coded lines
         foreach ($line in $logContent -split "`n") {
             if ($line -match "error|exception") {
-                # Set the font color to yellow for lines containing "error" or "exception"
                 Write-Host $line -ForegroundColor Yellow
             } else {
-                # Default color for other lines
                 Write-Host $line
             }
         }
-        
+
         # Automatically scroll to the bottom by re-outputting the content
         [Console]::SetCursorPosition(0, [Console]::WindowTop + [Console]::WindowHeight - 1)
     } catch {
