@@ -1,29 +1,35 @@
-import java.time.Instant;
-import java.util.concurrent.atomic.AtomicInteger;
+# Define the URL for the Spring Boot log file
+$logFileUrl = "http://localhost/actuator/logfile"
 
-public class RefactoredUniqueNumberGenerator {
-
-    private static final AtomicInteger counter = new AtomicInteger(0);
-
-    public static int generateRefactoredUniqueNumber() {
-        // Get the current UTC time in seconds since the Unix epoch
-        long timestamp = Instant.now().getEpochSecond();
-
-        // Get the counter value and increment it atomically
-        int uniqueCounter = counter.getAndIncrement();
-
-        // Use 22 bits for the timestamp and 10 bits for the counter
-        // This results in a 32-bit integer, allowing for a much larger range
-        int uniqueNumber = (int) ((timestamp & 0x3FFFFF) << 10) | (uniqueCounter & 0x03FF);
-
-        return uniqueNumber;
+# Function to fetch and display the log file content
+function Fetch-LogFile {
+    try {
+        # Get the content of the log file
+        $logContent = Invoke-RestMethod -Uri $logFileUrl -ErrorAction Stop
+        
+        # Clear the console
+        Clear-Host
+        
+        # Display the content with color-coded lines
+        foreach ($line in $logContent -split "`n") {
+            if ($line -match "error|exception") {
+                # Set the font color to yellow for lines containing "error" or "exception"
+                Write-Host $line -ForegroundColor Yellow
+            } else {
+                # Default color for other lines
+                Write-Host $line
+            }
+        }
+        
+        # Automatically scroll to the bottom by re-outputting the content
+        [Console]::SetCursorPosition(0, [Console]::WindowTop + [Console]::WindowHeight - 1)
+    } catch {
+        Write-Host "Failed to fetch the log file. Error: $_" -ForegroundColor Red
     }
+}
 
-    public static void main(String[] args) {
-        // Example usage
-        System.out.println(generateRefactoredUniqueNumber());
-        System.out.println(generateRefactoredUniqueNumber());
-        System.out.println(generateRefactoredUniqueNumber());
-        // And so on...
-    }
+# Loop to fetch the log file every 15 seconds
+while ($true) {
+    Fetch-LogFile
+    Start-Sleep -Seconds 15
 }
