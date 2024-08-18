@@ -1,29 +1,29 @@
 import java.time.Instant;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
 
-public class UTCUniqueIntegerGenerator {
+public class RefactoredUniqueNumberGenerator {
 
-    private static final AtomicLong counter = new AtomicLong(0);
+    private static final AtomicInteger counter = new AtomicInteger(0);
 
-    public static long generateUniqueNumber() {
-        // Get the current UTC time in milliseconds
-        long timestamp = Instant.now().toEpochMilli();
+    public static int generateRefactoredUniqueNumber() {
+        // Get the current UTC time in seconds since the Unix epoch
+        long timestamp = Instant.now().getEpochSecond();
 
         // Get the counter value and increment it atomically
-        long uniqueCounter = counter.getAndIncrement();
+        int uniqueCounter = counter.getAndIncrement();
 
-        // Shift the timestamp to the left by 20 bits and add the counter value
-        // The 20-bit shift allows the counter to be very large without overlapping with the timestamp
-        long uniqueNumber = (timestamp << 20) | (uniqueCounter & 0xFFFFF);
+        // Use 22 bits for the timestamp and 10 bits for the counter
+        // This results in a 32-bit integer, allowing for a much larger range
+        int uniqueNumber = (int) ((timestamp & 0x3FFFFF) << 10) | (uniqueCounter & 0x03FF);
 
         return uniqueNumber;
     }
 
     public static void main(String[] args) {
         // Example usage
-        System.out.println(generateUniqueNumber());
-        System.out.println(generateUniqueNumber());
-        System.out.println(generateUniqueNumber());
+        System.out.println(generateRefactoredUniqueNumber());
+        System.out.println(generateRefactoredUniqueNumber());
+        System.out.println(generateRefactoredUniqueNumber());
         // And so on...
     }
 }
