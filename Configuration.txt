@@ -13,10 +13,14 @@ function Fetch-LogFile {
 
         # Display the content with color-coded lines
         foreach ($line in $logContent -split "`n") {
-            if ($line -match "error|exception") {
+            if ($line -match "ERROR|Exception") {
+                Write-Host $line -ForegroundColor Red
+            } elseif ($line -match "WARN") {
                 Write-Host $line -ForegroundColor Yellow
+            } elseif ($line -match "INFO") {
+                Write-Host $line -ForegroundColor Green
             } else {
-                Write-Host $line
+                Write-Host $line -ForegroundColor White
             }
         }
 
@@ -27,8 +31,17 @@ function Fetch-LogFile {
     }
 }
 
+# Function to display a header for better readability
+function Display-Header {
+    Clear-Host
+    Write-Host "---------------------------------------" -ForegroundColor Cyan
+    Write-Host "      Spring Boot Log File Monitor      " -ForegroundColor Cyan
+    Write-Host "---------------------------------------" -ForegroundColor Cyan
+}
+
 # Loop to fetch the log file every 15 seconds
 while ($true) {
+    Display-Header
     Fetch-LogFile
     Start-Sleep -Seconds 15
 }
