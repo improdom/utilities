@@ -1,32 +1,29 @@
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import java.time.Instant;
+import java.util.concurrent.atomic.AtomicLong;
 
-import java.util.Map;
+public class UTCUniqueIntegerGenerator {
 
-@Component
-public class WorkflowFactory {
+    private static final AtomicLong counter = new AtomicLong(0);
 
-    private final WorkflowConfig workflowConfig;
+    public static long generateUniqueNumber() {
+        // Get the current UTC time in milliseconds
+        long timestamp = Instant.now().toEpochMilli();
 
-    @Autowired
-    public WorkflowFactory(WorkflowConfig workflowConfig) {
-        this.workflowConfig = workflowConfig;
+        // Get the counter value and increment it atomically
+        long uniqueCounter = counter.getAndIncrement();
+
+        // Shift the timestamp to the left by 20 bits and add the counter value
+        // The 20-bit shift allows the counter to be very large without overlapping with the timestamp
+        long uniqueNumber = (timestamp << 20) | (uniqueCounter & 0xFFFFF);
+
+        return uniqueNumber;
     }
 
-    public BaseWorkflow createWorkflow(String workflowName) {
-        WorkflowConfig.Workflow workflowConfigData = workflowConfig.getWorkflows().get(workflowName);
-
-        if (workflowConfigData == null) {
-            throw new IllegalArgumentException("No workflow configuration found for: " + workflowName);
-        }
-
-        switch (workflowName) {
-            case "databricks-etl":
-                return new DatabricksEtlWorkflow(workflowConfigData.getArcEvent(), workflowConfigData.getRunWorkflow());
-            case "pbi-refresh-complete":
-                return new PbiRefreshCompleteWorkflow(workflowConfigData.getArcEvent(), workflowConfigData.getRunWorkflow());
-            default:
-                throw new UnsupportedOperationException("Unknown workflow: " + workflowName);
-        }
+    public static void main(String[] args) {
+        // Example usage
+        System.out.println(generateUniqueNumber());
+        System.out.println(generateUniqueNumber());
+        System.out.println(generateUniqueNumber());
+        // And so on...
     }
 }
