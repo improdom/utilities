@@ -1,129 +1,25 @@
-To extend your Power BI Metadata REST API with endpoints that provide the data for hierarchies, you can follow the approach below. These endpoints will allow clients to either load the entire hierarchy or load it on demand by returning the children of a parent node.
+public static String removeNodeByName(String jsonString, String nodeName) {
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            // Parse the JSON string into a JsonNode
+            JsonNode rootNode = mapper.readTree(jsonString);
 
-### New Endpoints
+            // Navigate to the eventMetaData array
+            JsonNode eventMetaDataArray = rootNode.path("eventMetaData");
+            if (eventMetaDataArray.isArray()) {
+                for (JsonNode node : eventMetaDataArray) {
+                    // Check and remove the specified node by name
+                    if (node.has(nodeName)) {
+                        ((ObjectNode) node).remove(nodeName);
+                    }
+                }
+            }
 
-#### 1. **Get Entire Hierarchy Data**
-   - **Endpoint**: `GET /api/hierarchies/{hierarchyId}/data`
-   - **Description**: This endpoint returns the entire hierarchy data for a specified hierarchy. It provides all levels and their corresponding members.
+            // Convert the updated JsonNode back to a JSON string
+            return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(rootNode);
 
-   **Example Response**:
-   ```json
-   {
-     "hierarchyId": "string",
-     "name": "string",
-     "rootNodes": [
-       {
-         "nodeId": "string",
-         "name": "string",
-         "children": [
-           {
-             "nodeId": "string",
-             "name": "string",
-             "children": [
-               // Further nested children
-             ]
-           }
-         ]
-       }
-     ]
-   }
-   ```
-
-#### 2. **Get Children of a Node**
-   - **Endpoint**: `GET /api/hierarchies/{hierarchyId}/nodes/{nodeId}/children`
-   - **Description**: This endpoint returns the children of a specified node within a hierarchy. This is useful for clients that wish to load data on demand, for example, as the user expands a tree control in the UI.
-
-   **Example Response**:
-   ```json
-   {
-     "nodeId": "string",
-     "name": "string",
-     "children": [
-       {
-         "nodeId": "string",
-         "name": "string",
-         "childrenCount": 3 // Indicates how many children this node has
-       }
-     ]
-   }
-   ```
-
-### Data Model Updates
-
-#### Hierarchy Node
-A new data model for hierarchy nodes will be required:
-
-```json
-{
-  "nodeId": "string",
-  "name": "string",
-  "parentId": "string", // ID of the parent node
-  "hierarchyId": "string",
-  "children": [
-    {
-      "nodeId": "string",
-      "name": "string",
-      "childrenCount": 3
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null; // or handle the exception as needed
+        }
     }
-  ]
-}
-```
-
-### Implementation Details
-
-#### Service Layer
-
-- **Get Entire Hierarchy Data**: The service method will recursively fetch all nodes for a hierarchy and construct the tree structure.
-  
-  ```java
-  public HierarchyData getHierarchyData(String hierarchyId) {
-      // Fetch root nodes and recursively load all child nodes
-      return hierarchyRepository.findHierarchyData(hierarchyId);
-  }
-  ```
-
-- **Get Children of a Node**: The service method will fetch only the immediate children of a given node, allowing for on-demand loading.
-
-  ```java
-  public List<Node> getNodeChildren(String hierarchyId, String nodeId) {
-      return nodeRepository.findChildren(hierarchyId, nodeId);
-  }
-  ```
-
-#### Controller Layer
-
-- **Entire Hierarchy Data Endpoint**:
-
-  ```java
-  @GetMapping("/hierarchies/{hierarchyId}/data")
-  public HierarchyData getHierarchyData(@PathVariable String hierarchyId) {
-      return hierarchyService.getHierarchyData(hierarchyId);
-  }
-  ```
-
-- **Children of a Node Endpoint**:
-
-  ```java
-  @GetMapping("/hierarchies/{hierarchyId}/nodes/{nodeId}/children")
-  public List<Node> getNodeChildren(@PathVariable String hierarchyId, @PathVariable String nodeId) {
-      return hierarchyService.getNodeChildren(hierarchyId, nodeId);
-  }
-  ```
-
-### Use Case
-
-1. **Loading Entire Hierarchy**: When the user needs to display the entire hierarchy in a single operation, the client would call the `GET /api/hierarchies/{hierarchyId}/data` endpoint.
-
-2. **Loading On-Demand**: When the user expands a node in a tree control, the client would call the `GET /api/hierarchies/{hierarchyId}/nodes/{nodeId}/children` endpoint to load just the child nodes of the expanded node.
-
-### Security Considerations
-
-- Ensure that access to hierarchy data is controlled by the same authentication and authorization mechanisms as the rest of the API.
-- Consider adding rate limiting or pagination to the `GET /api/hierarchies/{hierarchyId}/data` endpoint to prevent overloading the server with large hierarchy structures.
-
-### Documentation and Testing
-
-- **Swagger/OpenAPI**: Update the API documentation to reflect the new endpoints, including request parameters and response formats.
-- **Testing**: Write unit and integration tests for the new service methods and controllers to ensure that the endpoints behave as expected under various conditions.
-
-This extension will make your API more versatile by providing both full hierarchy data and on-demand loading capabilities, suitable for a wide range of client use cases.
