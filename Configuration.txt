@@ -1,25 +1,74 @@
-public static String removeNodeByName(String jsonString, String nodeName) {
-        ObjectMapper mapper = new ObjectMapper();
-        try {
-            // Parse the JSON string into a JsonNode
-            JsonNode rootNode = mapper.readTree(jsonString);
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
-            // Navigate to the eventMetaData array
-            JsonNode eventMetaDataArray = rootNode.path("eventMetaData");
-            if (eventMetaDataArray.isArray()) {
-                for (JsonNode node : eventMetaDataArray) {
-                    // Check and remove the specified node by name
-                    if (node.has(nodeName)) {
-                        ((ObjectNode) node).remove(nodeName);
-                    }
-                }
-            }
+public class JsonNodeRemoverTest {
 
-            // Convert the updated JsonNode back to a JSON string
-            return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(rootNode);
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null; // or handle the exception as needed
-        }
+    @Test
+    public void testRemoveNodeByName_NodeExists() {
+        String jsonString = "{ \"eventRunTimeId\": \"462528\", \"eventName\": \"ARC_RISK_RUN_READY\", \"sourceEnv\": \"PROD\", \"eventMetaData\": [{ \"businessDate\": \"2029-08-05\", \"dataSegments\": 25, \"sourceSystem\": \"AT4099\" }] }";
+        String expectedJsonString = "{ \"eventRunTimeId\" : \"462528\", \"eventName\" : \"ARC_RISK_RUN_READY\", \"sourceEnv\" : \"PROD\", \"eventMetaData\" : [ { \"businessDate\" : \"2029-08-05\", \"sourceSystem\" : \"AT4099\" } ] }";
+        
+        String result = JsonNodeRemover.removeNodeByName(jsonString, "dataSegments");
+        
+        assertEquals(expectedJsonString, result);
     }
+
+    @Test
+    public void testRemoveNodeByName_NodeDoesNotExist() {
+        String jsonString = "{ \"eventRunTimeId\": \"462528\", \"eventName\": \"ARC_RISK_RUN_READY\", \"sourceEnv\": \"PROD\", \"eventMetaData\": [{ \"businessDate\": \"2029-08-05\", \"sourceSystem\": \"AT4099\" }] }";
+        String expectedJsonString = "{ \"eventRunTimeId\" : \"462528\", \"eventName\" : \"ARC_RISK_RUN_READY\", \"sourceEnv\" : \"PROD\", \"eventMetaData\" : [ { \"businessDate\" : \"2029-08-05\", \"sourceSystem\" : \"AT4099\" } ] }";
+        
+        String result = JsonNodeRemover.removeNodeByName(jsonString, "nonExistentNode");
+        
+        assertEquals(expectedJsonString, result);
+    }
+
+    @Test
+    public void testRemoveNodeByName_EmptyJson() {
+        String jsonString = "{}";
+        String expectedJsonString = "{}";
+        
+        String result = JsonNodeRemover.removeNodeByName(jsonString, "dataSegments");
+        
+        assertEquals(expectedJsonString, result);
+    }
+
+    @Test
+    public void testRemoveNodeByName_InvalidJson() {
+        String jsonString = "{ this is not valid JSON }";
+        
+        String result = JsonNodeRemover.removeNodeByName(jsonString, "dataSegments");
+        
+        assertNull(result);
+    }
+
+    @Test
+    public void testRemoveNodeByName_MultipleNodes() {
+        String jsonString = "{ \"eventRunTimeId\": \"462528\", \"eventName\": \"ARC_RISK_RUN_READY\", \"sourceEnv\": \"PROD\", \"eventMetaData\": [{ \"businessDate\": \"2029-08-05\", \"dataSegments\": 25, \"sourceSystem\": \"AT4099\" }, { \"businessDate\": \"2029-08-06\", \"dataSegments\": 30, \"sourceSystem\": \"BT5010\" }] }";
+        String expectedJsonString = "{ \"eventRunTimeId\" : \"462528\", \"eventName\" : \"ARC_RISK_RUN_READY\", \"sourceEnv\" : \"PROD\", \"eventMetaData\" : [ { \"businessDate\" : \"2029-08-05\", \"sourceSystem\" : \"AT4099\" }, { \"businessDate\" : \"2029-08-06\", \"sourceSystem\" : \"BT5010\" } ] }";
+        
+        String result = JsonNodeRemover.removeNodeByName(jsonString, "dataSegments");
+        
+        assertEquals(expectedJsonString, result);
+    }
+
+    @Test
+    public void testRemoveNodeByName_EventMetaDataNotArray() {
+        String jsonString = "{ \"eventRunTimeId\": \"462528\", \"eventName\": \"ARC_RISK_RUN_READY\", \"sourceEnv\": \"PROD\", \"eventMetaData\": { \"businessDate\": \"2029-08-05\", \"dataSegments\": 25, \"sourceSystem\": \"AT4099\" } }";
+        String expectedJsonString = "{ \"eventRunTimeId\" : \"462528\", \"eventName\" : \"ARC_RISK_RUN_READY\", \"sourceEnv\" : \"PROD\", \"eventMetaData\" : { \"businessDate\" : \"2029-08-05\", \"dataSegments\" : 25, \"sourceSystem\" : \"AT4099\" } }";
+        
+        String result = JsonNodeRemover.removeNodeByName(jsonString, "dataSegments");
+        
+        assertEquals(expectedJsonString, result);
+    }
+
+    @Test
+    public void testRemoveNodeByName_NoEventMetaData() {
+        String jsonString = "{ \"eventRunTimeId\": \"462528\", \"eventName\": \"ARC_RISK_RUN_READY\", \"sourceEnv\": \"PROD\" }";
+        String expectedJsonString = "{ \"eventRunTimeId\" : \"462528\", \"eventName\" : \"ARC_RISK_RUN_READY\", \"sourceEnv\" : \"PROD\" }";
+        
+        String result = JsonNodeRemover.removeNodeByName(jsonString, "dataSegments");
+        
+        assertEquals(expectedJsonString, result);
+    }
+}
