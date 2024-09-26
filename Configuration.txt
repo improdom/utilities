@@ -1,192 +1,57 @@
-param (
-    [string]$workspaceName,
-    [string]$pbixFileName,
-    [string]$clientId,
-    [string]$clientSecret,
-    [string]$tenantId
-)
+import java.util.List;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
-# Function to get an access token
-function Get-AccessToken {
-    param (
-        [string]$clientId,
-        [string]$clientSecret,
-        [string]$tenantId
-    )
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class JobListResponse {
+    private List<Job> jobs;
 
-    $body = @{
-        grant_type    = "client_credentials"
-        client_id     = $clientId
-        client_secret = $clientSecret
-        scope         = "https://analysis.windows.net/powerbi/api/.default"
+    public List<Job> getJobs() {
+        return jobs;
     }
 
-    $response = Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/$tenantId/oauth2/v2.0/token" -ContentType "application/x-www-form-urlencoded" -Body $body
-    return $response.access_token
-}
-
-# Function to get the workspace ID by name
-function Get-WorkspaceId {
-    param (
-        [string]$accessToken,
-        [string]$workspaceName
-    )
-
-    $headers = @{
-        Authorization = "Bearer $accessToken"
+    public void setJobs(List<Job> jobs) {
+        this.jobs = jobs;
     }
 
-    $response = Invoke-RestMethod -Method Get -Uri "https://api.powerbi.com/v1.0/myorg/groups" -Headers $headers
-    $workspace = $response.value | Where-Object { $_.name -eq $workspaceName }
+    // Inner class representing each job
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class Job {
+        private Long job_id;
+        private String name;
+        private String creator_user_name;
+        private Long created_time;
 
-    if ($workspace) {
-        return $workspace.id
-    } else {
-        Write-Error "Workspace '$workspaceName' not found."
-        exit 1
-    }
-}
+        // Getters and setters for each field
+        public Long getJob_id() {
+            return job_id;
+        }
 
-# Function to upload the PBIX file
-function Upload-Pbix {
-    param (
-        [string]$accessToken,
-        [string]$workspaceId,
-        [string]$pbixFileName
-    )
+        public void setJob_id(Long job_id) {
+            this.job_id = job_id;
+        }
 
-    $headers = @{
-        Authorization = "Bearer $accessToken"
-    }
+        public String getName() {
+            return name;
+        }
 
-    $fileStream = [System.IO.File]::OpenRead($pbixFileName)
-    $multipartContent = New-Object System.Net.Http.MultipartFormDataContent
-    $fileContent = New-Object System.Net.Http.StreamContent($fileStream)
-    $fileContent.Headers.ContentDisposition = New-Object System.Net.Http.Headers.ContentDispositionHeaderValue("form-data")
-    $fileContent.Headers.ContentDisposition.Name = '"file"'
-    $fileContent.Headers.ContentDisposition.FileName = '"' + [System.IO.Path]::GetFileName($pbixFileName) + '"'
-    $fileContent.Headers.ContentType = New-Object System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream")
-    $multipartContent.Add($fileContent)
+        public void setName(String name) {
+            this.name = name;
+        }
 
-    $httpClient = New-Object System.Net.Http.HttpClient
-    $response = $httpClient.PostAsync("https://api.powerbi.com/v1.0/myorg/groups/$workspaceId/imports?datasetDisplayName=$(Get-Item $pbixFileName).BaseName", $multipartContent).Result
-    $response.EnsureSuccessStatusCode()
+        public String getCreator_user_name() {
+            return creator_user_name;
+        }
 
-    Write-Output "PBIX file uploaded successfully"
-}
+        public void setCreator_user_name(String creator_user_name) {
+            this.creator_user_name = creator_user_name;
+        }
 
-# Main script execution
-$accessToken = Get-AccessToken -clientId $clientId -clientSecret $clientSecret -tenantId $tenantId
-$workspaceId = Get-WorkspaceId -accessToken $accessToken -workspaceName $workspaceName
-Upload-Pbix -accessToken $accessToken -workspaceId $workspaceId -pbixFileName $pbixFileName
+        public Long getCreated_time() {
+            return created_time;
+        }
 
-
-------------------------
-
-param (
-    [string]$workspaceName,
-    [string]$datasetName,
-    [string]$parameterName,
-    [string]$parameterNewValue,
-    [string]$clientId,
-    [string]$clientSecret,
-    [string]$tenantId
-)
-
-# Function to get an access token
-function Get-AccessToken {
-    param (
-        [string]$clientId,
-        [string]$clientSecret,
-        [string]$tenantId
-    )
-
-    $body = @{
-        grant_type    = "client_credentials"
-        client_id     = $clientId
-        client_secret = $clientSecret
-        scope         = "https://analysis.windows.net/powerbi/api/.default"
-    }
-
-    $response = Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/$tenantId/oauth2/v2.0/token" -ContentType "application/x-www-form-urlencoded" -Body $body
-    return $response.access_token
-}
-
-# Function to get the workspace ID by name
-function Get-WorkspaceId {
-    param (
-        [string]$accessToken,
-        [string]$workspaceName
-    )
-
-    $headers = @{
-        Authorization = "Bearer $accessToken"
-    }
-
-    $response = Invoke-RestMethod -Method Get -Uri "https://api.powerbi.com/v1.0/myorg/groups" -Headers $headers
-    $workspace = $response.value | Where-Object { $_.name -eq $workspaceName }
-
-    if ($workspace) {
-        return $workspace.id
-    } else {
-        Write-Error "Workspace '$workspaceName' not found."
-        exit 1
+        public void setCreated_time(Long created_time) {
+            this.created_time = created_time;
+        }
     }
 }
-
-# Function to get the dataset ID by name
-function Get-DatasetId {
-    param (
-        [string]$accessToken,
-        [string]$workspaceId,
-        [string]$datasetName
-    )
-
-    $headers = @{
-        Authorization = "Bearer $accessToken"
-    }
-
-    $response = Invoke-RestMethod -Method Get -Uri "https://api.powerbi.com/v1.0/myorg/groups/$workspaceId/datasets" -Headers $headers
-    $dataset = $response.value | Where-Object { $_.name -eq $datasetName }
-
-    if ($dataset) {
-        return $dataset.id
-    } else {
-        Write-Error "Dataset '$datasetName' not found in workspace '$workspaceId'."
-        exit 1
-    }
-}
-
-# Function to update the dataset parameters
-function Update-Parameters {
-    param (
-        [string]$accessToken,
-        [string]$workspaceId,
-        [string]$datasetId,
-        [string]$parameterName,
-        [string]$parameterNewValue
-    )
-
-    $headers = @{
-        Authorization = "Bearer $accessToken"
-        "Content-Type" = "application/json"
-    }
-
-    $body = @{
-        updateDetails = @(
-            @{
-                name = $parameterName
-                newValue = $parameterNewValue
-            }
-        )
-    } | ConvertTo-Json
-
-    $response = Invoke-RestMethod -Method Patch -Uri "https://api.powerbi.com/v1.0/myorg/groups/$workspaceId/datasets/$datasetId/Default.UpdateParameters" -Headers $headers -Body $body
-    Write-Output "Dataset parameters updated successfully"
-}
-
-# Main script execution
-$accessToken = Get-AccessToken -clientId $clientId -clientSecret $clientSecret -tenantId $tenantId
-$workspaceId = Get-WorkspaceId -accessToken $accessToken -workspaceName $workspaceName
-$datasetId = Get-DatasetId -accessToken $accessToken -workspaceId $workspaceId -datasetName $datasetName
-Update-Parameters -accessToken $accessToken -workspaceId $workspaceId -datasetId $datasetId -parameterName $parameterName -parameterNewValue $parameterNewValue
