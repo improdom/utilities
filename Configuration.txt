@@ -1,35 +1,21 @@
-import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class JobListResponse {
-    private List<Job> jobs;
+public static class Job {
+    @JsonProperty("job_id")
+    private Long jobId;
 
-    public List<Job> getJobs() {
-        return jobs;
-    }
+    @JsonProperty("settings")
+    private Settings settings;
 
-    public void setJobs(List<Job> jobs) {
-        this.jobs = jobs;
-    }
-
-    // Inner class representing each job
+    // Inner class for job settings
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class Job {
-        private Long job_id;
+    public static class Settings {
+        @JsonProperty("name")
         private String name;
-        private String creator_user_name;
-        private Long created_time;
 
-        // Getters and setters for each field
-        public Long getJob_id() {
-            return job_id;
-        }
-
-        public void setJob_id(Long job_id) {
-            this.job_id = job_id;
-        }
-
+        // Getters and Setters
         public String getName() {
             return name;
         }
@@ -37,21 +23,22 @@ public class JobListResponse {
         public void setName(String name) {
             this.name = name;
         }
+    }
 
-        public String getCreator_user_name() {
-            return creator_user_name;
-        }
+    // Getters and setters for Job fields
+    public Long getJobId() {
+        return jobId;
+    }
 
-        public void setCreator_user_name(String creator_user_name) {
-            this.creator_user_name = creator_user_name;
-        }
+    public void setJobId(Long jobId) {
+        this.jobId = jobId;
+    }
 
-        public Long getCreated_time() {
-            return created_time;
-        }
+    public Settings getSettings() {
+        return settings;
+    }
 
-        public void setCreated_time(Long created_time) {
-            this.created_time = created_time;
-        }
+    public void setSettings(Settings settings) {
+        this.settings = settings;
     }
 }
