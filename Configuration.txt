@@ -1,44 +1,50 @@
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
+using System;
+using System.Collections.Generic;
+using Microsoft.AnalysisServices.AdomdClient;
 
-@JsonIgnoreProperties(ignoreUnknown = true)
-public static class Job {
-    @JsonProperty("job_id")
-    private Long jobId;
+public class DaxQueryExecutor
+{
+    public Dictionary<string, int> ExecuteDaxQuery()
+    {
+        string connectionString = "Data Source=<your-powerbi-datasource>;Initial Catalog=<your-catalog>"; // Update the Data Source and Catalog
+        string daxQuery = @"
+        DEFINE
+            VAR DSCore = 
+                SUMMARIZECOLUMNS(
+                    'In Memory'[power_bi_partition],
+                    'In Memory'[CoB Date ID],
+                    ""Sumrecord_count"", CALCULATE(SUM('In Memory'[row_cnt]))
+                )
+            VAR DSCoreFiltered = 
+                FILTER(DSCore, 'In Memory'[CoB Date ID] = 20240916)
+            VAR DSOPimaryWindowed = 
+                TOPN(50, DSCoreFiltered, [Sumrecord_count], 0, 'In Memory'[power_bi_partition], 1)
+        EVALUATE
+            DSOPimaryWindowed
+        ORDER BY
+            [Sumrecord_count] DESC, 'In Memory'[power_bi_partition]
+        ";
 
-    @JsonProperty("settings")
-    private Settings settings;
+        var result = new Dictionary<string, int>();
 
-    // Inner class for job settings
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class Settings {
-        @JsonProperty("name")
-        private String name;
+        using (AdomdConnection connection = new AdomdConnection(connectionString))
+        {
+            connection.Open();
 
-        // Getters and Setters
-        public String getName() {
-            return name;
+            using (AdomdCommand command = new AdomdCommand(daxQuery, connection))
+            {
+                using (AdomdDataReader reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        string powerBiPartition = reader["power_bi_partition"].ToString();
+                        int sumRecordCount = Convert.ToInt32(reader["Sumrecord_count"]);
+                        result.Add(powerBiPartition, sumRecordCount);
+                    }
+                }
+            }
         }
 
-        public void setName(String name) {
-            this.name = name;
-        }
-    }
-
-    // Getters and setters for Job fields
-    public Long getJobId() {
-        return jobId;
-    }
-
-    public void setJobId(Long jobId) {
-        this.jobId = jobId;
-    }
-
-    public Settings getSettings() {
-        return settings;
-    }
-
-    public void setSettings(Settings settings) {
-        this.settings = settings;
+        return result;
     }
 }
