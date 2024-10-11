@@ -1,44 +1,109 @@
-using Microsoft.Identity.Client;
-using Microsoft.PowerBI.Api;
-using Microsoft.PowerBI.Api.Models;
 using System;
-using System.Net.Http.Headers;
+using System.Collections.Generic;
+using System.Linq;
+using Microsoft.AnalysisServices.AdomdClient;
+using Microsoft.Azure.Databricks.Client;
 using System.Threading.Tasks;
 
-class Program
+public class DataReconciliation
 {
-    private static readonly string clientId = "Your_Client_ID";
-    private static readonly string tenantId = "Your_Tenant_ID";
-    private static readonly string clientSecret = "Your_Client_Secret";
-    private static readonly string authorityUrl = $"https://login.microsoftonline.com/{tenantId}";
-    private static readonly string powerBiApiUrl = "https://api.powerbi.com/";
-    private static readonly string workspaceId = "Your_Workspace_ID";
-    private static readonly string datasetId = "Your_Dataset_ID";
+    private readonly string powerBiConnectionString;
+    private readonly DatabricksClient databricksClient;
+    private readonly string databricksDatabase;
+    private readonly string databricksTable;
 
-    static async Task Main(string[] args)
+    public DataReconciliation(
+        string powerBiConnectionString,
+        DatabricksClient databricksClient,
+        string databricksDatabase,
+        string databricksTable)
     {
-        var accessToken = await GetAccessToken();
-        using var powerBiClient = new PowerBIClient(new Uri(powerBiApiUrl), new TokenCredentials(accessToken, "Bearer"));
+        this.powerBiConnectionString = powerBiConnectionString;
+        this.databricksClient = databricksClient;
+        this.databricksDatabase = databricksDatabase;
+        this.databricksTable = databricksTable;
+    }
 
-        // Get the dataset's refresh history
-        var refreshes = await powerBiClient.Datasets.GetRefreshHistoryInGroupAsync(workspaceId, datasetId);
-        
-        foreach (var refresh in refreshes.Value)
+    public async Task ReconcileDataAsync()
+    {
+        var powerBiData = GetPowerBiData();
+        var databricksData = await GetDatabricksDataAsync();
+
+        var differences = powerBiData
+            .Join(databricksData, 
+                  pbi => pbi.PartitionId, 
+                  db => db.PartitionId, 
+                  (pbi, db) => new
+                  {
+                      PartitionId = pbi.PartitionId,
+                      PowerBiRowCount = pbi.RowCount,
+                      DatabricksRowCount = db.RowCount,
+                      Difference = pbi.RowCount - db.RowCount
+                  })
+            .Where(result => result.Difference != 0)
+            .ToList();
+
+        if (differences.Any())
         {
-            Console.WriteLine($"Refresh ID: {refresh.Id}, Status: {refresh.Status}, Start Time: {refresh.StartTime}, End Time: {refresh.EndTime}");
+            Console.WriteLine("Differences found:");
+            foreach (var diff in differences)
+            {
+                Console.WriteLine($"Partition: {diff.PartitionId}, Power BI: {diff.PowerBiRowCount}, Databricks: {diff.DatabricksRowCount}, Difference: {diff.Difference}");
+            }
+        }
+        else
+        {
+            Console.WriteLine("No differences found. Data is consistent.");
         }
     }
 
-    private static async Task<string> GetAccessToken()
+    private List<DataRecord> GetPowerBiData()
     {
-        var app = ConfidentialClientApplicationBuilder.Create(clientId)
-            .WithClientSecret(clientSecret)
-            .WithAuthority(new Uri(authorityUrl))
-            .Build();
+        var records = new List<DataRecord>();
 
-        var scopes = new[] { "https://analysis.windows.net/powerbi/api/.default" };
+        using (var connection = new AdomdConnection(powerBiConnectionString))
+        {
+            connection.Open();
+            var command = new AdomdCommand("EVALUATE SUMMARIZECOLUMNS('TableName', 'partition_id', 'row_count')", connection);
 
-        var result = await app.AcquireTokenForClient(scopes).ExecuteAsync();
-        return result.AccessToken;
+            using (var reader = command.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    records.Add(new DataRecord
+                    {
+                        PartitionId = reader["partition_id"].ToString(),
+                        RowCount = Convert.ToInt32(reader["row_count"])
+                    });
+                }
+            }
+        }
+
+        return records;
+    }
+
+    private async Task<List<DataRecord>> GetDatabricksDataAsync()
+    {
+        var records = new List<DataRecord>();
+
+        var sqlQuery = $"SELECT partition_id, row_count FROM {databricksDatabase}.{databricksTable}";
+        var result = await databricksClient.SqlQueryAsync(sqlQuery);
+
+        foreach (var row in result)
+        {
+            records.Add(new DataRecord
+            {
+                PartitionId = row["partition_id"].ToString(),
+                RowCount = Convert.ToInt32(row["row_count"])
+            });
+        }
+
+        return records;
+    }
+
+    private class DataRecord
+    {
+        public string PartitionId { get; set; }
+        public int RowCount { get; set; }
     }
 }
