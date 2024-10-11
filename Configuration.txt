@@ -1,109 +1,43 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using Microsoft.AnalysisServices.AdomdClient;
-using Microsoft.Azure.Databricks.Client;
-using System.Threading.Tasks;
-
-public class DataReconciliation
+public async Task ReconcileDataAsync()
 {
-    private readonly string powerBiConnectionString;
-    private readonly DatabricksClient databricksClient;
-    private readonly string databricksDatabase;
-    private readonly string databricksTable;
+    var powerBiData = GetPowerBiData();
+    var databricksData = await GetDatabricksDataAsync();
 
-    public DataReconciliation(
-        string powerBiConnectionString,
-        DatabricksClient databricksClient,
-        string databricksDatabase,
-        string databricksTable)
+    // Combine both datasets using a full outer join pattern.
+    var allPartitionIds = powerBiData.Select(p => p.PartitionId)
+                                     .Union(databricksData.Select(d => d.PartitionId))
+                                     .ToList();
+
+    var differences = allPartitionIds.Select(partitionId =>
     {
-        this.powerBiConnectionString = powerBiConnectionString;
-        this.databricksClient = databricksClient;
-        this.databricksDatabase = databricksDatabase;
-        this.databricksTable = databricksTable;
-    }
+        var powerBiRecord = powerBiData.FirstOrDefault(p => p.PartitionId == partitionId);
+        var databricksRecord = databricksData.FirstOrDefault(d => d.PartitionId == partitionId);
 
-    public async Task ReconcileDataAsync()
+        var powerBiRowCount = powerBiRecord?.RowCount ?? 0;
+        var databricksRowCount = databricksRecord?.RowCount ?? 0;
+        var difference = powerBiRowCount - databricksRowCount;
+
+        return new
+        {
+            PartitionId = partitionId,
+            PowerBiRowCount = powerBiRowCount,
+            DatabricksRowCount = databricksRowCount,
+            Difference = difference
+        };
+    })
+    .Where(result => result.Difference != 0)
+    .ToList();
+
+    if (differences.Any())
     {
-        var powerBiData = GetPowerBiData();
-        var databricksData = await GetDatabricksDataAsync();
-
-        var differences = powerBiData
-            .Join(databricksData, 
-                  pbi => pbi.PartitionId, 
-                  db => db.PartitionId, 
-                  (pbi, db) => new
-                  {
-                      PartitionId = pbi.PartitionId,
-                      PowerBiRowCount = pbi.RowCount,
-                      DatabricksRowCount = db.RowCount,
-                      Difference = pbi.RowCount - db.RowCount
-                  })
-            .Where(result => result.Difference != 0)
-            .ToList();
-
-        if (differences.Any())
+        Console.WriteLine("Differences found:");
+        foreach (var diff in differences)
         {
-            Console.WriteLine("Differences found:");
-            foreach (var diff in differences)
-            {
-                Console.WriteLine($"Partition: {diff.PartitionId}, Power BI: {diff.PowerBiRowCount}, Databricks: {diff.DatabricksRowCount}, Difference: {diff.Difference}");
-            }
-        }
-        else
-        {
-            Console.WriteLine("No differences found. Data is consistent.");
+            Console.WriteLine($"Partition: {diff.PartitionId}, Power BI: {diff.PowerBiRowCount}, Databricks: {diff.DatabricksRowCount}, Difference: {diff.Difference}");
         }
     }
-
-    private List<DataRecord> GetPowerBiData()
+    else
     {
-        var records = new List<DataRecord>();
-
-        using (var connection = new AdomdConnection(powerBiConnectionString))
-        {
-            connection.Open();
-            var command = new AdomdCommand("EVALUATE SUMMARIZECOLUMNS('TableName', 'partition_id', 'row_count')", connection);
-
-            using (var reader = command.ExecuteReader())
-            {
-                while (reader.Read())
-                {
-                    records.Add(new DataRecord
-                    {
-                        PartitionId = reader["partition_id"].ToString(),
-                        RowCount = Convert.ToInt32(reader["row_count"])
-                    });
-                }
-            }
-        }
-
-        return records;
-    }
-
-    private async Task<List<DataRecord>> GetDatabricksDataAsync()
-    {
-        var records = new List<DataRecord>();
-
-        var sqlQuery = $"SELECT partition_id, row_count FROM {databricksDatabase}.{databricksTable}";
-        var result = await databricksClient.SqlQueryAsync(sqlQuery);
-
-        foreach (var row in result)
-        {
-            records.Add(new DataRecord
-            {
-                PartitionId = row["partition_id"].ToString(),
-                RowCount = Convert.ToInt32(row["row_count"])
-            });
-        }
-
-        return records;
-    }
-
-    private class DataRecord
-    {
-        public string PartitionId { get; set; }
-        public int RowCount { get; set; }
+        Console.WriteLine("No differences found. Data is consistent.");
     }
 }
