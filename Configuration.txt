@@ -1,43 +1,21 @@
-public async Task ReconcileDataAsync()
-{
-    var powerBiData = GetPowerBiData();
-    var databricksData = await GetDatabricksDataAsync();
+# Convert the list to an array
+$items = $list -split ','
 
-    // Combine both datasets using a full outer join pattern.
-    var allPartitionIds = powerBiData.Select(p => p.PartitionId)
-                                     .Union(databricksData.Select(d => d.PartitionId))
-                                     .ToList();
+# Loop through each item
+foreach ($item in $items) {
+    # Create the payload
+    $body = @{
+        "item" = $item
+    } | ConvertTo-Json
 
-    var differences = allPartitionIds.Select(partitionId =>
-    {
-        var powerBiRecord = powerBiData.FirstOrDefault(p => p.PartitionId == partitionId);
-        var databricksRecord = databricksData.FirstOrDefault(d => d.PartitionId == partitionId);
-
-        var powerBiRowCount = powerBiRecord?.RowCount ?? 0;
-        var databricksRowCount = databricksRecord?.RowCount ?? 0;
-        var difference = powerBiRowCount - databricksRowCount;
-
-        return new
-        {
-            PartitionId = partitionId,
-            PowerBiRowCount = powerBiRowCount,
-            DatabricksRowCount = databricksRowCount,
-            Difference = difference
-        };
-    })
-    .Where(result => result.Difference != 0)
-    .ToList();
-
-    if (differences.Any())
-    {
-        Console.WriteLine("Differences found:");
-        foreach (var diff in differences)
-        {
-            Console.WriteLine($"Partition: {diff.PartitionId}, Power BI: {diff.PowerBiRowCount}, Databricks: {diff.DatabricksRowCount}, Difference: {diff.Difference}");
-        }
+    # Define the headers (if needed)
+    $headers = @{
+        "Content-Type" = "application/json"
     }
-    else
-    {
-        Console.WriteLine("No differences found. Data is consistent.");
-    }
+
+    # Send the POST request
+    $response = Invoke-RestMethod -Uri "https://localhost/process" -Method Post -Body $body -Headers $headers
+
+    # Output the response
+    Write-Host "Response for item $item: $response"
 }
