@@ -1,11 +1,15 @@
+# List of items
+$list = "A,B,C,D,E,F"
+
 # Convert the list to an array
 $items = $list -split ','
 
 # Loop through each item
 foreach ($item in $items) {
-    # Create the payload
+    # Create the payload with 'name' and 'processName'
     $body = @{
-        "item" = $item
+        "name" = $item
+        "processName" = "update"
     } | ConvertTo-Json
 
     # Define the headers (if needed)
