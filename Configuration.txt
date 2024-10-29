@@ -1,25 +1,23 @@
-# List of items
-$list = "A,B,C,D,E,F"
+# Define the file path and API endpoint
+$filePath = "C:\path\to\your\file.txt"  # Update with your actual file path
+$apiUrl = "https://your-api-endpoint.com"  # Replace with your actual API endpoint
 
-# Convert the list to an array
-$items = $list -split ','
+# Read the file and iterate through each row
+Import-Csv -Path $filePath -Delimiter "`t" | ForEach-Object {
+    # Extract the necessary fields
+    $eventRuntimeId = $_.event_runtime_id
+    $messageBody = $_.message_body
 
-# Loop through each item
-foreach ($item in $items) {
-    # Create the payload with 'name' and 'processName'
-    $body = @{
-        "name" = $item
-        "processName" = "update"
-    } | ConvertTo-Json
+    # Prepare the HTTP POST request
+    $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Body $messageBody -ContentType "application/json"
 
-    # Define the headers (if needed)
-    $headers = @{
-        "Content-Type" = "application/json"
+    # Check if the message was sent successfully
+    if ($response.StatusCode -eq 200 -or $response.StatusCode -eq $null) {  # Some APIs don't return a StatusCode
+        Write-Output "Message with event_runtime_id $eventRuntimeId has been sent successfully."
+    } else {
+        Write-Output "Failed to send message with event_runtime_id $eventRuntimeId."
     }
 
-    # Send the POST request
-    $response = Invoke-RestMethod -Uri "https://localhost/process" -Method Post -Body $body -Headers $headers
-
-    # Output the response
-    Write-Host "Response for item $item: $response"
+    # Delay of 29 minutes before the next message
+    Start-Sleep -Minutes 29
 }
