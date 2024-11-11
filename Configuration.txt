@@ -1,23 +1,75 @@
-# Define the file path and API endpoint
-$filePath = "C:\path\to\your\file.txt"  # Update with your actual file path
-$apiUrl = "https://your-api-endpoint.com"  # Replace with your actual API endpoint
+import requests
 
-# Read the file and iterate through each row
-Import-Csv -Path $filePath -Delimiter "`t" | ForEach-Object {
-    # Extract the necessary fields
-    $eventRuntimeId = $_.event_runtime_id
-    $messageBody = $_.message_body
-
-    # Prepare the HTTP POST request
-    $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Body $messageBody -ContentType "application/json"
-
-    # Check if the message was sent successfully
-    if ($response.StatusCode -eq 200 -or $response.StatusCode -eq $null) {  # Some APIs don't return a StatusCode
-        Write-Output "Message with event_runtime_id $eventRuntimeId has been sent successfully."
-    } else {
-        Write-Output "Failed to send message with event_runtime_id $eventRuntimeId."
+def get_token(client_id, tenant_id, client_secret, scope):
+    """
+    Retrieve an access token using client credentials.
+    
+    Args:
+        client_id (str): Client ID of the application.
+        tenant_id (str): Tenant ID for Azure AD.
+        client_secret (str): Client Secret for the application.
+        scope (str): Scope of the access request.
+    
+    Returns:
+        str: Access token if successful, None otherwise.
+    """
+    token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
+    payload = {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "scope": scope,
+        "grant_type": "client_credentials"
     }
 
-    # Delay of 29 minutes before the next message
-    Start-Sleep -Minutes 29
+    response = requests.post(token_url, data=payload)
+    if response.status_code == 200:
+        return response.json().get("access_token")
+    else:
+        print("Failed to retrieve token:", response.status_code, response.text)
+        return None
+
+def send_api_request(api_url, token, data):
+    """
+    Send an authenticated POST request to the specified API with JSON data.
+    
+    Args:
+        api_url (str): The URL of the API endpoint.
+        token (str): The access token for authentication.
+        data (dict): The data to be sent in the POST request.
+    
+    Returns:
+        dict: JSON response from the API if successful, None otherwise.
+    """
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+
+    response = requests.post(api_url, headers=headers, json=data)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print("API request failed:", response.status_code, response.text)
+        return None
+
+# Usage example:
+client_id = "your_client_id"
+tenant_id = "your_tenant_id"
+client_secret = "your_client_secret"
+scope = "https://your_resource/.default"
+
+# Get the token
+token = get_token(client_id, tenant_id, client_secret, scope)
+
+# Define the data to be sent in the POST request
+data = {
+    "key1": "value1",
+    "key2": "value2"
 }
+
+# Make the API request if token retrieval was successful
+if token:
+    api_url = "https://your_api_endpoint.com/resource"
+    api_response = send_api_request(api_url, token, data)
+    if api_response:
+        print("API Response:", api_response)
