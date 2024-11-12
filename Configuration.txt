@@ -1,24 +1,23 @@
-Simplified Risk Management Objective:
-"I will help UBS build a proactive risk culture by implementing sound risk management practices. I will protect the organization’s reputation and financial stability by identifying and managing risks effectively, following a strong control framework and balanced risk-taking approach. I will ensure compliance with policies and regulations and take full responsibility for my role and assigned duties."
+"I will foster a culture of continuous operational excellence by ensuring accountability in front-to-back processes. I will identify and record operational risk issues promptly and ensure that staff work within the required accountability framework."
 
-Outcomes / Metrics for Risk Management:
-Risk Identification and Mitigation
+Outcomes / Metrics for CUSO Operational Excellence:
+Operational Risk Identification
 
-Conduct regular risk assessments and identify potential risks within my area of responsibility.
-Implement effective risk mitigation strategies and document them for future reference.
-Compliance and Control Framework
+Ensure that all operational risk issues within my area of responsibility are identified and recorded promptly.
+Maintain a log of issues, including the steps taken to address and prevent recurrence.
+Accountability in Process Execution
 
-Maintain compliance with all relevant policies, laws, and regulations within my area.
-Complete regular compliance audits and address any findings promptly to uphold regulatory standards.
-Timely Issue Resolution
+Ensure that all team members understand their accountability in executing processes accurately and efficiently.
+Conduct regular reviews of front-to-back processes to reinforce accountability and identify areas for improvement.
+Timely Issue Escalation
 
-Address and resolve any identified risk incidents or audit findings in a timely manner.
-Document all actions taken to address risk incidents and report outcomes to relevant stakeholders.
-Accountability and Ownership
+Escalate issues promptly according to company protocols to minimize operational risks.
+Document each escalation and resolution step to track responsiveness and adherence to protocol.
+Continuous Process Improvement
 
-Take accountability for all self-identified risks, ensuring they are addressed according to company protocols.
-Regularly review and update control measures to align with best practices in risk management.
-Sustainable Risk Practices
+Implement initiatives that promote efficiency and reduce potential risks in operational processes.
+Regularly evaluate and refine processes to align with best practices in operational excellence.
+Documentation and Reporting
 
-Promote a risk-aware culture by engaging with team members and ensuring they understand the importance of balanced risk-taking.
-Encourage open communication within the team about risk management practices and improvements.
+Ensure that all actions taken to address operational risks are documented and reported to relevant stakeholders.
+Provide regular updates on the status of operational excellence initiatives to ensure transparency and accountability.
