@@ -1,12 +1,3 @@
-This year, my primary focus was on enhancing the design of the aggregation platform and bringing it to fruition by leading the team in the technical implementation. My contributions played a significant role in the following areas:
+o increase my impact, I am focusing on expanding my skill set in AI and machine learning, specifically as applied to data analytics and model optimization. My goal is to develop an AI-powered application that analyzes user logs generated from Power BI model interactions. This application will identify patterns in model usage, highlight frequently used dimensions and attributes, and detect areas for potential enhancement. By automatically prioritizing attributes and suggesting calculation improvements, this tool will provide data-driven insights to optimize the model continuously. This initiative will not only improve the user experience but also increase model efficiency and performance, aligning with our overall strategic goals.
 
-Optimizing Service Efficiency and Resilience: I enhanced the efficiency and resilience of critical services, such as the Message Broker and Power BI, to ensure smooth and reliable data processing workflows.
-
-Advancing Power BI Composite Models: I optimized our Power BI Composite model using advanced techniques, including aggregation awareness and hybrid tables, to maximize resource efficiency in areas like memory and CPU utilization. This approach has greatly improved our query performance.
-
-Collaborating with Databricks for Optimized Data Models: I worked closely with the Databricks team to build a data model tailored to Power BI’s Common Data Model (CDM) requirements. This collaboration resulted in an optimized data source that supports fast data refreshes and improved query performance, aligning with Power BI's data handling standards.
-
-Developing Quality Assurance Tools: I created a suite of tools aimed at supporting robust system quality assurance, such as:
-
-The MRV reconciliation service for validating data, comparing complex calculations, and identifying anomalies.
-The CDM Stress Tool, a benchmarking and performance analytics tool used by the team to detect bottlenecks in query execution, enhancing the responsiveness of our models.
+Additionally, I aim to enhance my leadership skills by actively mentoring junior team members, sharing best practices in advanced modeling techniques, and fostering collaboration across teams, especially with Databricks and Power BI specialists. This will allow me to contribute more broadly and support team growth, further amplifying our collective impact.
