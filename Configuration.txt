@@ -1,6 +1,68 @@
-DataValue = 
-IF (
-    MAX('Date'[Date]) >= TODAY() - 5,
-    CALCULATE ( SUM ( 'Aggregation Table'[Value] ) ),
-    CALCULATE ( SUM ( 'Detail Table'[Value] ), REMOVEFILTERS('Aggregation Table') )
-)
+import javax.servlet.Filter;
+import javax.servlet.FilterChain;
+import javax.servlet.FilterConfig;
+import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+@Component
+public class CustomLoggingFilter implements Filter {
+
+    private static final Logger logger = LoggerFactory.getLogger(CustomLoggingFilter.class);
+
+    @Override
+    public void init(FilterConfig filterConfig) throws ServletException {
+        // Initialization if needed
+    }
+
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+            throws IOException, ServletException {
+
+        if (request instanceof HttpServletRequest) {
+            HttpServletRequest httpRequest = (HttpServletRequest) request;
+            logRequest(httpRequest);
+        }
+
+        chain.doFilter(request, response);
+
+        if (response instanceof HttpServletResponse) {
+            HttpServletResponse httpResponse = (HttpServletResponse) response;
+            logResponse(httpResponse);
+        }
+    }
+
+    private void logRequest(HttpServletRequest request) {
+        String method = request.getMethod();
+        String uri = request.getRequestURI();
+        String queryString = request.getQueryString();
+        String authorizationHeader = request.getHeader("Authorization");
+
+        logger.info("Incoming request: {} {}", method, uri);
+        if (queryString != null) {
+            logger.info("Query string: {}", queryString);
+        }
+
+        // Avoid logging sensitive headers like Authorization
+        if (authorizationHeader != null) {
+            logger.info("Authorization header is present but not logged for security reasons.");
+        }
+    }
+
+    private void logResponse(HttpServletResponse response) {
+        int status = response.getStatus();
+        logger.info("Response status: {}", status);
+        // Add more response logging if needed, but avoid sensitive information
+    }
+
+    @Override
+    public void destroy() {
+        // Cleanup if needed
+    }
+}
