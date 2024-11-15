@@ -1,20 +1,6 @@
-Hi Stuart,
-
-Here are the proposed steps for the CI/CD process:
-
-CI Process:
-
-Create a new branch with a name starting with "FEATURE-...".
-The TMDL code will be stored in the "Arisk Sensitivities" folder within the repository's root. Any changes will be saved in this same folder.
-Once a change is ready, it should be pushed to GitLab and merged into the DEVELOPMENT or MASTER branch. A peer developer should review and approve it.
-The pipeline will automatically trigger, and the TMDL code will be packaged in a Docker container.
-CD Process:
-
-From the Docker pipeline, retrieve the build version number from the Build stage.
-Update the version in the aggregation Helm project within the values.yaml file.
-Merge the change into the development branch.
-Deploy to the selected environment using the UBSDeploy artifact.
-I will schedule a meeting to review the CD deployment part, as it’s slightly more complex due to the AKS integration.
-
-Thanks,
-Julio Diaz
+DataValue = 
+IF (
+    MAX('Date'[Date]) >= TODAY() - 5,
+    CALCULATE ( SUM ( 'Aggregation Table'[Value] ) ),
+    CALCULATE ( SUM ( 'Detail Table'[Value] ), REMOVEFILTERS('Aggregation Table') )
+)
