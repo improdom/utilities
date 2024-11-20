@@ -1,68 +1,97 @@
-import javax.servlet.Filter;
-import javax.servlet.FilterChain;
-import javax.servlet.FilterConfig;
-import javax.servlet.ServletException;
-import javax.servlet.ServletRequest;
-import javax.servlet.ServletResponse;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
+Dear Team,
 
-@Component
-public class CustomLoggingFilter implements Filter {
+I wanted to provide some clarity on how the TMSL script we are using operates in terms of sequences and maxParallelism. Below, I’ll explain how this works using the provided script as an example.
 
-    private static final Logger logger = LoggerFactory.getLogger(CustomLoggingFilter.class);
-
-    @Override
-    public void init(FilterConfig filterConfig) throws ServletException {
-        // Initialization if needed
-    }
-
-    @Override
-    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
-            throws IOException, ServletException {
-
-        if (request instanceof HttpServletRequest) {
-            HttpServletRequest httpRequest = (HttpServletRequest) request;
-            logRequest(httpRequest);
+Script Example:
+json
+Copy code
+{
+  "sequence": {
+    "maxParallelism": 30,
+    "operations": [
+      {
+        "refresh": {
+          "type": "dataOnly",
+          "objects": [
+            {
+              "database": "Arisk Sensitivities (Dev)",
+              "table": "Position",
+              "partition": "mr_cdm_dim_position_syn_vw"
+            },
+            {
+              "database": "Arisk Sensitivities (Dev)",
+              "table": "Risk Factor 2",
+              "partition": "mr_cdm_dim_risk_factor_2_syn_vw"
+            }
+          ]
         }
-
-        chain.doFilter(request, response);
-
-        if (response instanceof HttpServletResponse) {
-            HttpServletResponse httpResponse = (HttpServletResponse) response;
-            logResponse(httpResponse);
+      },
+      {
+        "refresh": {
+          "type": "calculate",
+          "objects": [
+            {
+              "database": "Arisk Sensitivities (Dev)"
+            }
+          ]
         }
-    }
-
-    private void logRequest(HttpServletRequest request) {
-        String method = request.getMethod();
-        String uri = request.getRequestURI();
-        String queryString = request.getQueryString();
-        String authorizationHeader = request.getHeader("Authorization");
-
-        logger.info("Incoming request: {} {}", method, uri);
-        if (queryString != null) {
-            logger.info("Query string: {}", queryString);
+      },
+      {
+        "refresh": {
+          "type": "add",
+          "objects": [
+            {
+              "database": "Arisk Sensitivities (Dev)",
+              "table": "In Memory",
+              "partition": "mr_cdm_fact_risk_results_in_memory_vw_20241106_1"
+            },
+            {
+              "database": "Arisk Sensitivities (Dev)",
+              "table": "In Memory",
+              "partition": "mr_cdm_fact_risk_results_in_memory_vw_20241106_10"
+            }
+          ]
         }
-
-        // Avoid logging sensitive headers like Authorization
-        if (authorizationHeader != null) {
-            logger.info("Authorization header is present but not logged for security reasons.");
-        }
-    }
-
-    private void logResponse(HttpServletResponse response) {
-        int status = response.getStatus();
-        logger.info("Response status: {}", status);
-        // Add more response logging if needed, but avoid sensitive information
-    }
-
-    @Override
-    public void destroy() {
-        // Cleanup if needed
-    }
+      }
+    ]
+  }
 }
+How This Works:
+Sequence Execution:
+
+The sequence block ensures that the listed operations are executed in the defined order. Each operation must complete before the next one begins, guaranteeing dependencies are respected.
+First Operation - Refresh Dimension Tables (dataOnly):
+
+The first operation refreshes the "Position" and "Risk Factor 2" dimension tables.
+Since maxParallelism is set to 30, both dimension table refreshes will run concurrently because there are only two objects in this operation. If there were more than 30 tables/partitions, additional ones would wait for an available slot.
+Second Operation - Process Calculate:
+
+After the first operation is complete, the script performs a calculate operation on the entire database.
+This ensures that all calculated columns, measures, and hierarchies are updated.
+This is a single operation and does not involve maxParallelism.
+Third Operation - Fact Incremental Refresh (add):
+
+Finally, the script performs a Fact Incremental Refresh by adding two partitions to the "In Memory" table.
+Since both partitions belong to the same refresh block, they will run concurrently, subject to the maxParallelism setting (30).
+Key Concepts:
+Operation:
+
+Each refresh block in the script is treated as a single operation.
+The objects (tables, partitions, etc.) listed inside an operation determine the workload that can run concurrently.
+MaxParallelism:
+
+This controls the number of objects that can run simultaneously within a single refresh operation.
+In this script, maxParallelism: 30 ensures that up to 30 objects can be processed in parallel in any single operation.
+Guaranteed Execution Order:
+
+The sequence construct guarantees that no operation will begin until the previous one has fully completed. This ensures that dependencies between operations, such as calculate after a table refresh, are respected.
+Conclusion:
+This script effectively ensures a structured and efficient processing pipeline:
+
+Refresh specific dimension tables in parallel.
+Recalculate measures and calculated columns.
+Perform a Fact Incremental Refresh by adding partitions in parallel.
+If you have any questions or need further details, please don’t hesitate to reach out.
+
+Best regards,
+[Your Name]
