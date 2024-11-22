@@ -1,91 +1,44 @@
-# Configuration
-$FolderPath = "C:\Path\To\TMSL\Scripts" # Path to folder containing TMSL scripts
-$LogFilePath = "C:\Path\To\Log\File\ExecutionLog.txt" # Path to log file
-$PowerBIWorkspaceID = "<Your-Workspace-ID>" # Replace with your Power BI workspace ID
-$DatasetID = "<Your-Dataset-ID>" # Replace with your Power BI dataset ID
-$TenantID = "<Your-Tenant-ID>" # Replace with your Azure AD Tenant ID
-$ClientID = "<Your-Client-ID>" # Replace with your Azure AD Client ID
-$ClientSecret = "<Your-Client-Secret>" # Replace with your Azure AD Client Secret
+using System.Text.Json; // Alternatively, you can use Newtonsoft.Json
 
-# Function to Log Messages
-function LogMessage {
-    param (
-        [string]$Message
-    )
-    $timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-    $logEntry = "$timestamp - $Message"
-    Add-Content -Path $LogFilePath -Value $logEntry
-    Write-Host $logEntry
-}
+public async Task UpdateParametersAsync(string remoteDatabaseId, string databricksInstance, string databricksSqlPath, string databricksDatabaseName)
+{
+    try
+    {
+        // Define a list of parameters
+        var parameterValues = new[]
+        {
+            new { name = "Databricks_Instance", newValue = databricksInstance },
+            new { name = "Databricks_SQL_Endpoint", newValue = databricksSqlPath },
+            new { name = "Databricks_Database", newValue = databricksDatabaseName },
+            new { name = "RangeStart", newValue = "1900-01-01" },
+            new { name = "RangeEnd", newValue = "2030-01-01" },
+            new { name = "TopN_Rows", newValue = "2147483647" }
+        };
 
-# Function to Get Access Token
-function Get-AccessToken {
-    param (
-        [string]$TenantID,
-        [string]$ClientID,
-        [string]$ClientSecret
-    )
-    $TokenEndpoint = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
-    $Body = @{
-        grant_type    = "client_credentials"
-        client_id     = $ClientID
-        client_secret = $ClientSecret
-        scope         = "https://analysis.windows.net/powerbi/api/.default"
-    }
-    $Response = Invoke-RestMethod -Uri $TokenEndpoint -Method Post -Body $Body -ContentType "application/x-www-form-urlencoded"
-    return $Response.access_token
-}
+        // Serialize the object to JSON
+        string jsonPayload = JsonSerializer.Serialize(new { updateDetails = parameterValues }, new JsonSerializerOptions { WriteIndented = true });
 
-# Get Access Token
-try {
-    $AccessToken = Get-AccessToken -TenantID $TenantID -ClientID $ClientID -ClientSecret $ClientSecret
-    LogMessage "Access token acquired successfully."
-} catch {
-    LogMessage "Failed to acquire access token. Error: $_"
-    exit
-}
+        // Send the request
+        using var powerClient = GetPowerBIClient(); // Assume this gets your HTTP client
+        var workspaceId = "your_workspace_id";
+        var datasetId = "your_dataset_id";
 
-# Read TMSL Scripts from Folder
-$TmslFiles = Get-ChildItem -Path $FolderPath -Filter "*.json"
+        var url = $"https://api.powerbi.com/v1.0/myorg/groups/{workspaceId}/datasets/{datasetId}/parameters";
 
-if ($TmslFiles.Count -eq 0) {
-    LogMessage "No TMSL scripts found in the folder."
-    exit
-}
+        var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+        var response = await powerClient.PostAsync(url, content);
 
-# Execute TMSL Scripts
-foreach ($file in $TmslFiles) {
-    LogMessage "Starting execution of TMSL script: $($file.Name)"
-    $startTime = Get-Date
-
-    # Read TMSL script content
-    $TmslContent = Get-Content -Path $file.FullName -Raw
-
-    # API Endpoint
-    $apiUrl = "https://api.powerbi.com/v1.0/myorg/groups/$PowerBIWorkspaceID/datasets/$DatasetID/executeQueries"
-
-    # Execute TMSL Script
-    try {
-        $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers @{
-            "Authorization" = "Bearer $AccessToken"
-            "Content-Type"  = "application/json"
-        } -Body $TmslContent
-
-        $endTime = Get-Date
-        $duration = $endTime - $startTime
-
-        if ($response -and $response.status -eq "Completed") {
-            LogMessage "Execution of $($file.Name) completed successfully."
-        } else {
-            LogMessage "Execution of $($file.Name) failed. Response: $($response | ConvertTo-Json -Depth 10)"
+        if (response.IsSuccessStatusCode)
+        {
+            Console.WriteLine("Parameters updated successfully.");
         }
-
-        LogMessage "Start Time: $startTime"
-        LogMessage "End Time: $endTime"
-        LogMessage "Duration: $($duration.TotalSeconds) seconds"
-    } catch {
-        LogMessage "Error executing TMSL script $($file.Name): $_"
+        else
+        {
+            Console.WriteLine($"Failed to update parameters: {response.StatusCode} - {await response.Content.ReadAsStringAsync()}");
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error occurred: {ex.Message}");
     }
 }
-
-LogMessage "All scripts executed."
