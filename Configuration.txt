@@ -1,1 +1,7 @@
-John Abraham has demonstrated exceptional proficiency as both a Postgres and Oracle developer. He played a pivotal role in developing the Postgres functionalities critical for our ARC ORM. Additionally, he has been instrumental in the maintenance and operation of the system cube, effectively supporting market needs and managing releases seamlessly.
+John has a great opportunity to expand his expertise by learning and transitioning to Databricks as part of our system migration to the cloud. This will not only enhance his skills in handling big data and cloud-native technologies but also position him as a key contributor to the success of the migration effort.
+
+
+
+
+
+John demonstrates positive UBS behaviors, particularly in collaboration and accountability. He works well with team members and ensures his tasks are completed on time and with care. His willingness to learn and adapt is evident as he takes on new challenges and seeks opportunities to grow, which will be valuable as the team transitions to cloud technologies like Databricks.
