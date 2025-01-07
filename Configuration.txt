@@ -1,62 +1,62 @@
-VAR isFiltered =
-    CALCULATE(
-        ISFILTERED('CoB Date'[CoB Date]),
-        ALLSELECTED()
-    )
+using System;
+using System.Collections.Generic;
+using System.IO;
 
-VAR selectedCoBDates =
-    VALUES('CoB Date'[CoB Date])
+class Program
+{
+    static void Main(string[] args)
+    {
+        string filePath = "path_to_your_file.csv"; // Replace with your file path
+        int numberOfColumnsToRead = 4; // Specify how many columns to process
+        List<Dictionary<string, string>> data = ReadPSVFile(filePath, numberOfColumnsToRead);
 
-VAR selectedCoBDateIDs =
-    CALCULATETABLE(
-        VALUES('CoB Date'[cob_date_id]),
-        'CoB Date'[CoB Date] IN selectedCoBDates
-    )
+        // Print the data to verify
+        foreach (var row in data)
+        {
+            foreach (var kvp in row)
+            {
+                Console.Write($"{kvp.Key}: {kvp.Value} | ");
+            }
+            Console.WriteLine();
+        }
+    }
 
-VAR maxCoBDateID =
-    CALCULATE(
-        MAX('In Memory'[CoB Date ID]),
-        REMOVEFILTERS()
-    )
+    static List<Dictionary<string, string>> ReadPSVFile(string filePath, int numberOfColumns)
+    {
+        var result = new List<Dictionary<string, string>>();
 
-VAR selectedCoBDate =
-    SELECTEDVALUE('CoB Date'[CoB Date], maxCoBDateID)
+        using (var reader = new StreamReader(filePath))
+        {
+            // Read the first line to get the column names
+            string headerLine = reader.ReadLine();
+            if (headerLine == null)
+                throw new Exception("The file is empty.");
 
-VAR defaultCoBValue =
-    CALCULATE(
-        SUM('Z Extended Model'[fact_value_usd]),
-        FILTER(
-            'Z Extended Model',
-            'Z Extended Model'[CoB Date ID] = maxCoBDateID
-        )
-    )
+            string[] columnNames = headerLine.Split('|');
 
-VAR isHighwayPresent =
-    CALCULATE(
-        DISTINCTCOUNT('In Memory'[CoB Date ID]),
-        FILTER(
-            'In Memory',
-            'In Memory'[CoB Date ID] IN selectedCoBDateIDs
-        )
-    ) > 0
+            // Limit the column names to the specified number
+            columnNames = columnNames.Length > numberOfColumns
+                ? columnNames[..numberOfColumns]
+                : columnNames;
 
-VAR calculatedValue =
-    IF(
-        NOT(isHighwayPresent),
-        CALCULATE(
-            SUM('Z Extended Model'[fact_value_usd]),
-            FILTER(
-                'Z Extended Model',
-                NOT(ISBLANK('Z Extended Model'[updated ts])) &&
-                'Z Extended Model'[updated ts] <= TODAY()
-            )
-        ),
-        SUM('Z Extended Model'[fact_value_usd])
-    )
+            // Read the remaining lines
+            string line;
+            while ((line = reader.ReadLine()) != null)
+            {
+                string[] values = line.Split('|');
+                var row = new Dictionary<string, string>();
 
-RETURN
-    IF(
-        isFiltered,
-        calculatedValue,
-        defaultCoBValue
-    )
+                for (int i = 0; i < numberOfColumns; i++)
+                {
+                    string columnName = i < columnNames.Length ? columnNames[i] : $"Column{i + 1}";
+                    string value = i < values.Length ? values[i] : string.Empty;
+                    row[columnName] = value;
+                }
+
+                result.Add(row);
+            }
+        }
+
+        return result;
+    }
+}
