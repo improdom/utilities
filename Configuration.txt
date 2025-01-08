@@ -1,25 +1,32 @@
-private List<BenchmarkSettings> SplitQueriesIntoChunks(BenchmarkSettings originalSettings, int chunkSize)
+public async Task<Dictionary<string, string>> GetEventStatusAsync(List<string> runTimeIds)
 {
-    var splitSettingsList = new List<BenchmarkSettings>();
-    
-    // Split Queries into chunks
-    var queryChunks = originalSettings.Queries
-        .Select((query, index) => new { query, index })
-        .GroupBy(x => x.index / chunkSize)
-        .Select(g => g.Select(x => x.query).ToList())
-        .ToList();
+    using var scope = _scopeFactory.CreateScope();
+    using var dbContext = scope.ServiceProvider.GetRequiredService<DataContext>();
 
-    // Create new BenchmarkSettings for each chunk
-    foreach (var chunk in queryChunks)
-    {
-        var newSettings = new BenchmarkSettings
-        {
-            Benchmark = originalSettings.Benchmark,
-            Queries = chunk,
-            Parameters = originalSettings.Parameters
-        };
-        splitSettingsList.Add(newSettings);
-    }
+    // Build the comma-separated list of runTimeIds for the SQL query
+    var ids = string.Join(",", runTimeIds.Select(id => $"'{id}'"));
 
-    return splitSettingsList;
+    // Construct the SQL query
+    var query = $@"
+        SELECT event_runtime_id, status 
+        FROM mr_agg_model_refresh.refresh_event_log
+        WHERE event_runtime_id IN ({ids})";
+
+    // Execute the query and map results
+    var result = await dbContext.Set<EventStatusResult>()
+                                .FromSqlRaw(query)
+                                .ToListAsync();
+
+    // Convert the result to a dictionary
+    return result.ToDictionary(e => e.EventRuntimeId, e => e.Status);
+}
+
+// Define a class to map the result
+public class EventStatusResult
+{
+    [Column("event_runtime_id")]
+    public string EventRuntimeId { get; set; }
+
+    [Column("status")]
+    public string Status { get; set; }
 }
