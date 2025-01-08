@@ -1,62 +1,45 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-
-class Program
+try
 {
-    static void Main(string[] args)
-    {
-        string filePath = "path_to_your_file.csv"; // Replace with your file path
-        int numberOfColumnsToRead = 4; // Specify how many columns to process
-        List<Dictionary<string, string>> data = ReadPSVFile(filePath, numberOfColumnsToRead);
+    var _benchmark = (BenchmarkEntity)this.TabManager.SelectedTab.Tag as BenchmarkEntity;
+    if (_benchmark == null)
+        return;
 
-        // Print the data to verify
-        foreach (var row in data)
+    using var db = new DatabaseContext();
+
+    var originalBenchmarkSettings = new BenchmarkSettings
+    {
+        Benchmark = _benchmark,
+        Queries = (from q in db.QueryEntities
+                   where q.BenchmarkId == _benchmark.BenchmarkId
+                   select q.Id).ToList(),
+        Parameters = (from p in db.Parameters.ToList()
+                      join q in db.QueryEntities
+                      on p.QueryId equals q.Id
+                      where p.BenchmarkId == _benchmark.BenchmarkId
+                      select p).Distinct().ToList()
+    };
+
+    // Split the queries into chunks of 10
+    var splitBenchmarkSettings = SplitQueriesIntoChunks(originalBenchmarkSettings, 10);
+
+    foreach (var benchmarkSettings in splitBenchmarkSettings)
+    {
+        string content = string.Empty;
+
+        if (Path.GetExtension(saveSettingsFileDialog.FileName) == ".json")
         {
-            foreach (var kvp in row)
-            {
-                Console.Write($"{kvp.Key}: {kvp.Value} | ");
-            }
-            Console.WriteLine();
+            content = JsonSerializer.WriteFromObject(benchmarkSettings);
         }
-    }
-
-    static List<Dictionary<string, string>> ReadPSVFile(string filePath, int numberOfColumns)
-    {
-        var result = new List<Dictionary<string, string>>();
-
-        using (var reader = new StreamReader(filePath))
+        else if (Path.GetExtension(saveSettingsFileDialog.FileName) == ".yaml")
         {
-            // Read the first line to get the column names
-            string headerLine = reader.ReadLine();
-            if (headerLine == null)
-                throw new Exception("The file is empty.");
-
-            string[] columnNames = headerLine.Split('|');
-
-            // Limit the column names to the specified number
-            columnNames = columnNames.Length > numberOfColumns
-                ? columnNames[..numberOfColumns]
-                : columnNames;
-
-            // Read the remaining lines
-            string line;
-            while ((line = reader.ReadLine()) != null)
-            {
-                string[] values = line.Split('|');
-                var row = new Dictionary<string, string>();
-
-                for (int i = 0; i < numberOfColumns; i++)
-                {
-                    string columnName = i < columnNames.Length ? columnNames[i] : $"Column{i + 1}";
-                    string value = i < values.Length ? values[i] : string.Empty;
-                    row[columnName] = value;
-                }
-
-                result.Add(row);
-            }
+            var serializer = new SerializerBuilder().Build();
+            content = serializer.Serialize(benchmarkSettings);
         }
 
-        return result;
+        File.WriteAllText($"{Path.GetFileNameWithoutExtension(saveSettingsFileDialog.FileName)}_{splitBenchmarkSettings.IndexOf(benchmarkSettings)}{Path.GetExtension(saveSettingsFileDialog.FileName)}", content);
     }
+}
+catch (Exception ex)
+{
+    MessageBox.Show($"{Resources.ErrorSavingSettings}: {ex.Message}");
 }
