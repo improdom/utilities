@@ -1,45 +1,25 @@
-try
+private List<BenchmarkSettings> SplitQueriesIntoChunks(BenchmarkSettings originalSettings, int chunkSize)
 {
-    var _benchmark = (BenchmarkEntity)this.TabManager.SelectedTab.Tag as BenchmarkEntity;
-    if (_benchmark == null)
-        return;
+    var splitSettingsList = new List<BenchmarkSettings>();
+    
+    // Split Queries into chunks
+    var queryChunks = originalSettings.Queries
+        .Select((query, index) => new { query, index })
+        .GroupBy(x => x.index / chunkSize)
+        .Select(g => g.Select(x => x.query).ToList())
+        .ToList();
 
-    using var db = new DatabaseContext();
-
-    var originalBenchmarkSettings = new BenchmarkSettings
+    // Create new BenchmarkSettings for each chunk
+    foreach (var chunk in queryChunks)
     {
-        Benchmark = _benchmark,
-        Queries = (from q in db.QueryEntities
-                   where q.BenchmarkId == _benchmark.BenchmarkId
-                   select q.Id).ToList(),
-        Parameters = (from p in db.Parameters.ToList()
-                      join q in db.QueryEntities
-                      on p.QueryId equals q.Id
-                      where p.BenchmarkId == _benchmark.BenchmarkId
-                      select p).Distinct().ToList()
-    };
-
-    // Split the queries into chunks of 10
-    var splitBenchmarkSettings = SplitQueriesIntoChunks(originalBenchmarkSettings, 10);
-
-    foreach (var benchmarkSettings in splitBenchmarkSettings)
-    {
-        string content = string.Empty;
-
-        if (Path.GetExtension(saveSettingsFileDialog.FileName) == ".json")
+        var newSettings = new BenchmarkSettings
         {
-            content = JsonSerializer.WriteFromObject(benchmarkSettings);
-        }
-        else if (Path.GetExtension(saveSettingsFileDialog.FileName) == ".yaml")
-        {
-            var serializer = new SerializerBuilder().Build();
-            content = serializer.Serialize(benchmarkSettings);
-        }
-
-        File.WriteAllText($"{Path.GetFileNameWithoutExtension(saveSettingsFileDialog.FileName)}_{splitBenchmarkSettings.IndexOf(benchmarkSettings)}{Path.GetExtension(saveSettingsFileDialog.FileName)}", content);
+            Benchmark = originalSettings.Benchmark,
+            Queries = chunk,
+            Parameters = originalSettings.Parameters
+        };
+        splitSettingsList.Add(newSettings);
     }
-}
-catch (Exception ex)
-{
-    MessageBox.Show($"{Resources.ErrorSavingSettings}: {ex.Message}");
+
+    return splitSettingsList;
 }
