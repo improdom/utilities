@@ -1,32 +1,5 @@
-public async Task<Dictionary<string, string>> GetEventStatusAsync(List<string> runTimeIds)
-{
-    using var scope = _scopeFactory.CreateScope();
-    using var dbContext = scope.ServiceProvider.GetRequiredService<DataContext>();
-
-    // Build the comma-separated list of runTimeIds for the SQL query
-    var ids = string.Join(",", runTimeIds.Select(id => $"'{id}'"));
-
-    // Construct the SQL query
-    var query = $@"
-        SELECT event_runtime_id, status 
-        FROM mr_agg_model_refresh.refresh_event_log
-        WHERE event_runtime_id IN ({ids})";
-
-    // Execute the query and map results
-    var result = await dbContext.Set<EventStatusResult>()
-                                .FromSqlRaw(query)
-                                .ToListAsync();
-
-    // Convert the result to a dictionary
-    return result.ToDictionary(e => e.EventRuntimeId, e => e.Status);
-}
-
-// Define a class to map the result
-public class EventStatusResult
-{
-    [Column("event_runtime_id")]
-    public string EventRuntimeId { get; set; }
-
-    [Column("status")]
-    public string Status { get; set; }
-}
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.UnknownTypeHandling = System.Text.Json.UnknownTypeHandling.Ignore;
+    });
