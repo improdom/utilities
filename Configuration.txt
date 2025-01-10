@@ -1,9 +1,14 @@
-Dear [Colleague's Name],
+Dear Team,
 
-I hope this email finds you well. As part of our ongoing efforts to address the errors we’ve encountered in our semantic model, I understand that a ticket was opened with Microsoft to investigate these issues further. Could you please share any information or updates obtained from the ticket?
+I hope this email finds you well.
 
-Specifically, I’d like to review any findings, recommendations, or next steps they’ve provided so we can incorporate them into our analysis and resolution plan. If there are any related files or reports, kindly include those as well.
+As discussed, the current issue with Gateway Mashup Errors in Power BI is a production issue that is creating significant risk to our business operations. While the interim workarounds have been acknowledged, we strongly recommend focusing on a permanent resolution as a priority.
 
-Let me know if there’s anything you need from me to assist with this.
+Given the critical nature of this production issue, we need to ensure that the risks associated with it are addressed promptly. Additionally, as discussed, we request that the ticket and communication channel remain open until the issue is fully resolved to ensure consistent updates and progress tracking.
 
-Thank you for your help!
+If additional clarification or intervention is required from our side to expedite the process, please feel free to reach out.
+
+Looking forward to your response at the earliest.
+
+Best regards,
+Julio Diaz
