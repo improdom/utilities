@@ -1,5 +1,8 @@
-builder.Services.AddControllers()
-    .AddJsonOptions(options =>
-    {
-        options.JsonSerializerOptions.UnknownTypeHandling = System.Text.Json.UnknownTypeHandling.Ignore;
-    });
+Dear Team,
+
+I have compiled an analysis of the intermittent errors we’ve been encountering in our semantic model while running the benchmarks. These include memory allocation issues (HY000, HY001) and Mashup data access errors, which seem to stem from resource constraints, query complexity, and dynamic workload factors affecting the Power BI gateway and Databricks SQL endpoint. The errors have been documented and, after additional sanitation, we plan to share them with Microsoft as part of the ticket we're opening.
+
+For more details on the errors and recommendations, please refer to the attached files. Let me know if you have any questions or need further clarification.
+
+Best regards,
+[Your Name]
