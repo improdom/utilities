@@ -1,14 +1,11 @@
-Dear Team,
+The Power BI semantic model is designed for advanced market risk analysis, featuring one aggregation table in import mode and a detailed table in direct query mode with over 600 attributes. It includes 20 dimensions and a comprehensive set of measures, enabling pre-aggregated data, drill-throughs, fast data availability, and robust reporting functionality for timely analysis and decision-making. The model is utilized by both end users and downstream systems, supporting dynamic analysis, cross-day comparisons, and static and dynamic security,
 
-I hope this email finds you well.
 
-As discussed, the current issue with Gateway Mashup Errors in Power BI is a production issue that is creating significant risk to our business operations. While the interim workarounds have been acknowledged, we strongly recommend focusing on a permanent resolution as a priority.
+--------------------------------------------------------
+The application servers a set of reports used to evaluate and monitor risk exposures across various domains including operational risks. These reports typically consolidate key risk metrics like Value at Risk (VaR), stress testing outcomes, scenario analyses, and exposure assessments to provide a detailed overview of the institution's risk profile. The reports are essential for regulatory compliance, and are used by senior management to make informed decisions about risk management strategies.
 
-Given the critical nature of this production issue, we need to ensure that the risks associated with it are addressed promptly. Additionally, as discussed, we request that the ticket and communication channel remain open until the issue is fully resolved to ensure consistent updates and progress tracking.
 
-If additional clarification or intervention is required from our side to expedite the process, please feel free to reach out.
 
-Looking forward to your response at the earliest.
 
-Best regards,
-Julio Diaz
+
+
