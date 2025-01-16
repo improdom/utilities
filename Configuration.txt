@@ -1,11 +1,28 @@
-The Power BI semantic model is designed for advanced market risk analysis, featuring one aggregation table in import mode and a detailed table in direct query mode with over 600 attributes. It includes 20 dimensions and a comprehensive set of measures, enabling pre-aggregated data, drill-throughs, fast data availability, and robust reporting functionality for timely analysis and decision-making. The model is utilized by both end users and downstream systems, supporting dynamic analysis, cross-day comparisons, and static and dynamic security,
-
-
---------------------------------------------------------
-The application servers a set of reports used to evaluate and monitor risk exposures across various domains including operational risks. These reports typically consolidate key risk metrics like Value at Risk (VaR), stress testing outcomes, scenario analyses, and exposure assessments to provide a detailed overview of the institution's risk profile. The reports are essential for regulatory compliance, and are used by senior management to make informed decisions about risk management strategies.
-
-
-
-
-
-
+{
+  "AppSettings": {
+    "Pbi": {
+      "SemanticModelName": "Arisk Sensitivities (New Deployment 2)",
+      "ConnectionString": "powerbi://api.powerbi.com/v1.0/myorg",
+      "Workspace": "Market Risk Dashboards DEV",
+      "GatewayId": "xxxxxxxxxx"
+    },
+    "Databricks": {
+      "Instance": "adb-3898381082404994.14.azuredatabricks.net",
+      "SqlPath": "/sql/1.0/warehouses/1d5b4f4566789e7",
+      "DatabaseName": "mr_arc_composite_gold_views"
+    },
+    "Authentication": {
+      "ClientId": "692d4b82-e167-4176-92eb-6160aea8764a",
+      "TenantId": "f6bea403-7cf1-4905-918a-f6547e982044",
+      "SecretStoreFile": "./stub_eva_secret.html",
+      "Authority": "https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token",
+      "Scope": "https://analysis.windows.net/powerbi/api/.default",
+      "Secret": "EVA(Secret)"
+    },
+    "ThdlModelPath": "././Arisk_Sensitivities",
+    "DeploymentOptions": {
+      "DeployPartitions": false,
+      "DeployRoles": false
+    }
+  }
+}
