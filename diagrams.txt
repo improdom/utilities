@@ -1,0 +1,71 @@
+
+Diagram 1
+
+@startuml
+start
+:Make changes in Tabular Editor;
+:Save changes as TMDL files;
+:Push changes to GitLab repository;
+:Trigger CI Pipeline;
+:Build Deployment application;
+
+:Send request to Big Data Team for deployment;
+:Big Data Team deploys using UBSDeploy;
+:UBSDeploy picks up Docker image;
+:Run PBI Deployment Tool;
+:Semantic model deployed to Power BI environment;
+
+
+stop
+@enduml
+
+--------------------------------------------------------------------------------
+
+
+
+
+Diagram 2
+
+@startuml
+actor Developer
+participant "GitLab Repository" as Repo
+participant "CI/CD Pipeline" as CICD
+participant "Docker Registry" as Registry
+participant "Big Data Team" as BDT
+participant "UBSDeploy Tool" as UBSDeploy
+participant "AKS Cluster" as AKS
+participant "Power BI Premium Workspace" as PowerBI
+
+Developer -> Repo: Push TMDL changes
+Repo -> CICD: Trigger CI/CD Pipeline
+CICD -> Registry: Push Docker image
+Developer -> BDT: Request deployment
+BDT -> UBSDeploy: Initiate deployment
+UBSDeploy -> Registry: Retrieve Docker image
+UBSDeploy -> AKS: Run PBI Deployment Tool
+AKS -> PowerBI: Deploy semantic model
+PowerBI -> Developer: Deployment confirmation
+@enduml
+
+--------------------------------------------------
+ Diagram 2
+ 
+ @startuml
+participant ".NET Application (Docker Container)" as DotNetApp
+database "Environment Variables" as EnvVars
+participant "Big Data Team" as BigDataTeam
+participant "UBSDeploy Tool" as UBSDeploy
+participant "AKS Cluster" as AKS
+participant "Power BI Workspace (Dev)" as Dev
+participant "Power BI Workspace (QA)" as QA
+participant "Power BI Workspace (Pre-Prod)" as PPRD
+participant "Power BI Workspace (Prod)" as Prod
+
+DotNetApp -> EnvVars: Fetch environment-specific variables
+BigDataTeam -> UBSDeploy: Request deployment for target environment
+UBSDeploy -> AKS: Deploy containerized .NET app
+AKS -> Dev: Deploy semantic model (Dev)
+AKS -> QA: Deploy semantic model (QA)
+AKS -> PPRD: Deploy semantic model (PPRD)
+AKS -> Prod: Deploy semantic model (Prod)
+@enduml
