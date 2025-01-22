@@ -1,26 +1,5 @@
-FROM container.registry.net/ubs/charlesriver/images/dotnet/dotnet-sdk-base:0.1.2.sdk-base-image.4 AS base
-WORKDIR /Arisk_Sensitivities
+Based on your review, here's a suggestion for your final feedback comment:
 
-FROM container.registry.net/ubs/charlesriver/images/dotnet/dotnet-sdk-base:0.1.2.sdk-base-image.4 AS build
-WORKDIR /app
+"I deeply appreciate the recognition of my contributions and achievements throughout the year, particularly in enhancing the ARC Aggregation & Composite Model project and optimizing the integration of Databricks and Power BI. The feedback provided on my leadership and technical skills will guide my efforts to mentor junior team members, foster collaboration across teams, and further enhance visibility for our work. I am committed to continuing the pursuit of innovative solutions and accountability in my role, ensuring we achieve even greater efficiency and value for our systems. Thank you for the constructive insights and support that motivate me to grow and deliver impactful results." 
 
-# Copy project and dependencies
-COPY ./PowerBI.Deployment/PowerBI.Deployment.API/nuget.config .
-COPY ./PowerBI.Deployment/PowerBI.Deployment.API/UBS_Server_CA_Test_3.crt /usr/share/ca-certificates/
-RUN update-ca-certificates
-
-COPY ./PowerBI.Deployment/PowerBI.Deployment.API/*.csproj ./PowerBI.Deployment.API/
-RUN dotnet restore ./PowerBI.Deployment.API/PowerBI.Deployment.API.csproj
-
-# Copy the rest of the source code and build
-COPY ./PowerBI.Deployment/PowerBI.Deployment.API ./PowerBI.Deployment.API/
-RUN dotnet build ./PowerBI.Deployment.API/PowerBI.Deployment.API.csproj -c Release --no-restore
-
-# Clean and publish
-RUN dotnet clean ./PowerBI.Deployment/PowerBI.Deployment.API/PowerBI.Deployment.API.csproj
-RUN dotnet publish ./PowerBI.Deployment/PowerBI.Deployment.API/PowerBI.Deployment.API.csproj -c Release -o /app/publish /p:UseAppHost=false
-
-FROM base AS final
-WORKDIR /app
-COPY --from=build /app/publish .
-ENTRYPOINT ["/app/PowerBI.Deployment.API"]
+Let me know if you'd like this tailored further!
