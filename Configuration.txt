@@ -1,28 +1,26 @@
-{
-  "AppSettings": {
-    "Pbi": {
-      "SemanticModelName": "Arisk Sensitivities (New Deployment 2)",
-      "ConnectionString": "powerbi://api.powerbi.com/v1.0/myorg",
-      "Workspace": "Market Risk Dashboards DEV",
-      "GatewayId": "xxxxxxxxxx"
-    },
-    "Databricks": {
-      "Instance": "adb-3898381082404994.14.azuredatabricks.net",
-      "SqlPath": "/sql/1.0/warehouses/1d5b4f4566789e7",
-      "DatabaseName": "mr_arc_composite_gold_views"
-    },
-    "Authentication": {
-      "ClientId": "692d4b82-e167-4176-92eb-6160aea8764a",
-      "TenantId": "f6bea403-7cf1-4905-918a-f6547e982044",
-      "SecretStoreFile": "./stub_eva_secret.html",
-      "Authority": "https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token",
-      "Scope": "https://analysis.windows.net/powerbi/api/.default",
-      "Secret": "EVA(Secret)"
-    },
-    "ThdlModelPath": "././Arisk_Sensitivities",
-    "DeploymentOptions": {
-      "DeployPartitions": false,
-      "DeployRoles": false
-    }
-  }
-}
+FROM container.registry.net/ubs/charlesriver/images/dotnet/dotnet-sdk-base:0.1.2.sdk-base-image.4 AS base
+WORKDIR /Arisk_Sensitivities
+
+FROM container.registry.net/ubs/charlesriver/images/dotnet/dotnet-sdk-base:0.1.2.sdk-base-image.4 AS build
+WORKDIR /app
+
+# Copy project and dependencies
+COPY ./PowerBI.Deployment/PowerBI.Deployment.API/nuget.config .
+COPY ./PowerBI.Deployment/PowerBI.Deployment.API/UBS_Server_CA_Test_3.crt /usr/share/ca-certificates/
+RUN update-ca-certificates
+
+COPY ./PowerBI.Deployment/PowerBI.Deployment.API/*.csproj ./PowerBI.Deployment.API/
+RUN dotnet restore ./PowerBI.Deployment.API/PowerBI.Deployment.API.csproj
+
+# Copy the rest of the source code and build
+COPY ./PowerBI.Deployment/PowerBI.Deployment.API ./PowerBI.Deployment.API/
+RUN dotnet build ./PowerBI.Deployment.API/PowerBI.Deployment.API.csproj -c Release --no-restore
+
+# Clean and publish
+RUN dotnet clean ./PowerBI.Deployment/PowerBI.Deployment.API/PowerBI.Deployment.API.csproj
+RUN dotnet publish ./PowerBI.Deployment/PowerBI.Deployment.API/PowerBI.Deployment.API.csproj -c Release -o /app/publish /p:UseAppHost=false
+
+FROM base AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+ENTRYPOINT ["/app/PowerBI.Deployment.API"]
