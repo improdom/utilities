@@ -1,5 +1,35 @@
-Based on your review, here's a suggestion for your final feedback comment:
+# Use multi-stage builds for efficient final image size
 
-"I deeply appreciate the recognition of my contributions and achievements throughout the year, particularly in enhancing the ARC Aggregation & Composite Model project and optimizing the integration of Databricks and Power BI. The feedback provided on my leadership and technical skills will guide my efforts to mentor junior team members, foster collaboration across teams, and further enhance visibility for our work. I am committed to continuing the pursuit of innovative solutions and accountability in my role, ensuring we achieve even greater efficiency and value for our systems. Thank you for the constructive insights and support that motivate me to grow and deliver impactful results." 
+# Base stage
+FROM container-registry.ubs.net/ubs/charlesriver/images/dotnet/dotnet-8-sdk-base:8.1.4 AS base
+WORKDIR /Arisk_Sensitivities
+COPY /Arisk_Sensitivities /Arisk_Sensitivities
 
-Let me know if you'd like this tailored further!
+# Build stage
+FROM container-registry.ubs.net/ubs/charlesriver/images/dotnet/dotnet-8-sdk-base:8.1.4 AS build
+WORKDIR /src
+COPY . /src
+
+# Add required certificates
+COPY /PowerBI.Deployment/PowerBI.Deployment.API/nuget.config /PowerBI.Deployment/PowerBI.Deployment.API/nuget.config
+COPY /PowerBI.Deployment/PowerBI.Deployment.API/UBS_Server_CA_Test_3.crt /usr/share/ca-certificates/
+RUN echo UBS_Server_CA_Test_3.crt >> /etc/ca-certificates.conf && update-ca-certificates
+
+# Restore dependencies
+RUN dotnet restore /PowerBI.Deployment/PowerBI.Deployment.API/PowerBI.Deployment.API.csproj --configfile /PowerBI.Deployment/PowerBI.Deployment.API/nuget.config
+
+# Clean up unnecessary files during build
+RUN find -type d -name bin -prune -exec rm -rf {} \; && \
+    find -type d -name obj -prune -exec rm -rf {} \;
+
+# Build the application
+RUN dotnet publish /PowerBI.Deployment/PowerBI.Deployment.API/PowerBI.Deployment.API.csproj \
+    -c Release \
+    -o /app/publish \
+    /p:UseAppHost=false
+
+# Final stage for runtime
+FROM base AS runtime
+WORKDIR /app
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "PowerBI.Deployment.API.dll"]
