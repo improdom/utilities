@@ -1,35 +1,4 @@
-# Use multi-stage builds for efficient final image size
+ServiceCore conveys the idea of a central, foundational service that provides essential and shared functionalities to other services. Here's a breakdown of its meaning:
 
-# Base stage
-FROM container-registry.ubs.net/ubs/charlesriver/images/dotnet/dotnet-8-sdk-base:8.1.4 AS base
-WORKDIR /Arisk_Sensitivities
-COPY /Arisk_Sensitivities /Arisk_Sensitivities
-
-# Build stage
-FROM container-registry.ubs.net/ubs/charlesriver/images/dotnet/dotnet-8-sdk-base:8.1.4 AS build
-WORKDIR /src
-COPY . /src
-
-# Add required certificates
-COPY /PowerBI.Deployment/PowerBI.Deployment.API/nuget.config /PowerBI.Deployment/PowerBI.Deployment.API/nuget.config
-COPY /PowerBI.Deployment/PowerBI.Deployment.API/UBS_Server_CA_Test_3.crt /usr/share/ca-certificates/
-RUN echo UBS_Server_CA_Test_3.crt >> /etc/ca-certificates.conf && update-ca-certificates
-
-# Restore dependencies
-RUN dotnet restore /PowerBI.Deployment/PowerBI.Deployment.API/PowerBI.Deployment.API.csproj --configfile /PowerBI.Deployment/PowerBI.Deployment.API/nuget.config
-
-# Clean up unnecessary files during build
-RUN find -type d -name bin -prune -exec rm -rf {} \; && \
-    find -type d -name obj -prune -exec rm -rf {} \;
-
-# Build the application
-RUN dotnet publish /PowerBI.Deployment/PowerBI.Deployment.API/PowerBI.Deployment.API.csproj \
-    -c Release \
-    -o /app/publish \
-    /p:UseAppHost=false
-
-# Final stage for runtime
-FROM base AS runtime
-WORKDIR /app
-COPY --from=build /app/publish .
-ENTRYPOINT ["dotnet", "PowerBI.Deployment.API.dll"]
+Service: Indicates that it is a functional backend application providing APIs and tools.
+Core: Suggests that it is a central, crucial component in the system, offering shared capabilities that other services rely on.
