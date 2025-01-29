@@ -1,4 +1,5 @@
-ServiceCore conveys the idea of a central, foundational service that provides essential and shared functionalities to other services. Here's a breakdown of its meaning:
+Dear [Recipient's Name],
 
-Service: Indicates that it is a functional backend application providing APIs and tools.
-Core: Suggests that it is a central, crucial component in the system, offering shared capabilities that other services rely on.
+I hope you're doing well.
+
+We have identified a scenario in our Power BI composite model where changes to the schema—such as adding a new column (D)—require regenerating surrogate keys. This impacts the linkage between our dimension table, aggregation table, and detail table. Below are potential solutions to handle this scenario while maintaining consistency and avoiding data integrity issues.
