@@ -1,5 +1,0 @@
-Dear [Recipient's Name],
-
-I hope you're doing well.
-
-We have identified a scenario in our Power BI composite model where changes to the schema—such as adding a new column (D)—require regenerating surrogate keys. This impacts the linkage between our dimension table, aggregation table, and detail table. Below are potential solutions to handle this scenario while maintaining consistency and avoiding data integrity issues.
