@@ -1,20 +1,42 @@
-VAR scenarioIsFiltered = NOT ISBLANK ( SELECTEDVALUE ( 'Scenario'[ScenarioLabel] ) )
 VAR scenarioType = SELECTEDVALUE ( 'Scenario'[ScenarioLabel], "TV" )
+VAR scenarioIsFiltered = NOT ISBLANK ( scenarioType )
+
 VAR isCompareCoBDateFiltered = ISFILTERED ( 'CoB Date'[Compare CoB Date] )
 VAR isCoBDateFiltered = ISFILTERED ( 'CoB Date'[CoB Date] )
 VAR isRiskMeasureFiltered = ISFILTERED ( 'Risk Measure'[Risk Measure] )
 VAR isScenarioLabelFiltered = ISFILTERED ( 'Scenario'[ScenarioLabel] )
 
+VAR _EVENT_ACTIVE = 
+    CALCULATE (
+        COUNTROWS ( 'Σ Extended Model' ),
+        'Σ Extended Model'[Is Active] = TRUE()
+    ) > 0
+
+VAR isScenarioAndCoBFiltered =
+    scenarioIsFiltered && ( isCoBDateFiltered || isCompareCoBDateFiltered || isRiskMeasureFiltered || isScenarioLabelFiltered )
+
 VAR DataValue =
     IF (
-        scenarioIsFiltered && ( isCoBDateFiltered || isCompareCoBDateFiltered || isRiskMeasureFiltered || isScenarioLabelFiltered ),
-        CALCULATE (
-            SUM ( 'Σ Extended Model'[fact_value_usd] ),
-            REMOVEFILTERS ( 'CoB Date' ),
-            'CoB Date'[Compare CoB Date] IN VALUES ( 'CoB Date'[CoB Date] ),
-            Scenario[ScenarioLabel] = scenarioType
+        isScenarioAndCoBFiltered,
+        SWITCH (
+            TRUE(),
+            NOT _EVENT_ACTIVE, 
+                CALCULATE (
+                    SUM ( 'Σ Extended Model'[fact_value_usd] ),
+                    FILTER (
+                        'Σ Extended Model',
+                        NOT ISBLANK ( 'Σ Extended Model'[event_run_time_id] )
+                    )
+                ),
+            _EVENT_ACTIVE,
+                CALCULATE (
+                    SUM ( 'Σ Extended Model'[fact_value_usd] ),
+                    REMOVEFILTERS ( 'CoB Date' ),
+                    'CoB Date'[Compare CoB Date] IN VALUES ( 'CoB Date'[CoB Date] ),
+                    'Scenario'[ScenarioLabel] = scenarioType
+                )
         )
     )
 
 RETURN 
-    IF ( NOT scenarioIsFiltered, BLANK (), DataValue )
+    IF ( NOT scenarioIsFiltered, BLANK(), DataValue )
