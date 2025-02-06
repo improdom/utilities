@@ -1,0 +1,20 @@
+VAR scenarioIsFiltered = NOT ISBLANK ( SELECTEDVALUE ( 'Scenario'[ScenarioLabel] ) )
+VAR scenarioType = SELECTEDVALUE ( 'Scenario'[ScenarioLabel], "TV" )
+VAR isCompareCoBDateFiltered = ISFILTERED ( 'CoB Date'[Compare CoB Date] )
+VAR isCoBDateFiltered = ISFILTERED ( 'CoB Date'[CoB Date] )
+VAR isRiskMeasureFiltered = ISFILTERED ( 'Risk Measure'[Risk Measure] )
+VAR isScenarioLabelFiltered = ISFILTERED ( 'Scenario'[ScenarioLabel] )
+
+VAR DataValue =
+    IF (
+        scenarioIsFiltered && ( isCoBDateFiltered || isCompareCoBDateFiltered || isRiskMeasureFiltered || isScenarioLabelFiltered ),
+        CALCULATE (
+            SUM ( 'Σ Extended Model'[fact_value_usd] ),
+            REMOVEFILTERS ( 'CoB Date' ),
+            'CoB Date'[Compare CoB Date] IN VALUES ( 'CoB Date'[CoB Date] ),
+            Scenario[ScenarioLabel] = scenarioType
+        )
+    )
+
+RETURN 
+    IF ( NOT scenarioIsFiltered, BLANK (), DataValue )
