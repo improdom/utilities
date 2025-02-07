@@ -1,42 +1,20 @@
-VAR scenarioType = SELECTEDVALUE ( 'Scenario'[ScenarioLabel], "TV" )
-VAR scenarioIsFiltered = NOT ISBLANK ( scenarioType )
+BASE_VALUE_USD =
+VAR selectedCobDate = SELECTEDVALUE('CoB Date'[CoB Date])
+VAR selectedCobDateId = LOOKUPVALUE('CoB Date'[CoB Date ID], 'CoB Date'[CoB Date], selectedCobDate)
 
-VAR isCompareCoBDateFiltered = ISFILTERED ( 'CoB Date'[Compare CoB Date] )
-VAR isCoBDateFiltered = ISFILTERED ( 'CoB Date'[CoB Date] )
-VAR isRiskMeasureFiltered = ISFILTERED ( 'Risk Measure'[Risk Measure] )
-VAR isScenarioLabelFiltered = ISFILTERED ( 'Scenario'[ScenarioLabel] )
-
-VAR _EVENT_ACTIVE = 
-    CALCULATE (
-        COUNTROWS ( 'Σ Extended Model' ),
-        'Σ Extended Model'[Is Active] = TRUE()
+-- Check if data exists in the "In Memory" table for the selected date
+VAR isInMemory = 
+    CALCULATE(
+        DISTINCTCOUNT('In Memory'[CoB Date ID]),
+        KEEPFILTERS('In Memory'[CoB Date ID] = selectedCobDateId)
     ) > 0
 
-VAR isScenarioAndCoBFiltered =
-    scenarioIsFiltered && ( isCoBDateFiltered || isCompareCoBDateFiltered || isRiskMeasureFiltered || isScenarioLabelFiltered )
-
-VAR DataValue =
-    IF (
-        isScenarioAndCoBFiltered,
-        SWITCH (
-            TRUE(),
-            NOT _EVENT_ACTIVE, 
-                CALCULATE (
-                    SUM ( 'Σ Extended Model'[fact_value_usd] ),
-                    FILTER (
-                        'Σ Extended Model',
-                        NOT ISBLANK ( 'Σ Extended Model'[event_run_time_id] )
-                    )
-                ),
-            _EVENT_ACTIVE,
-                CALCULATE (
-                    SUM ( 'Σ Extended Model'[fact_value_usd] ),
-                    REMOVEFILTERS ( 'CoB Date' ),
-                    'CoB Date'[Compare CoB Date] IN VALUES ( 'CoB Date'[CoB Date] ),
-                    'Scenario'[ScenarioLabel] = scenarioType
-                )
+RETURN 
+    CALCULATE(
+        SUM('Z Extended Model'[fact_value_usd]),
+        FILTER(
+            'Z Extended Model',
+            -- Apply filter only when the data is NOT in memory
+            NOT isInMemory && NOT ISBLANK('Z Extended Model'[fact_book_id])
         )
     )
-
-RETURN 
-    IF ( NOT scenarioIsFiltered, BLANK(), DataValue )
