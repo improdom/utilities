@@ -1,20 +1,23 @@
-BASE_VALUE_USD =
-VAR selectedCobDate = SELECTEDVALUE('CoB Date'[CoB Date])
-VAR selectedCobDateId = LOOKUPVALUE('CoB Date'[CoB Date ID], 'CoB Date'[CoB Date], selectedCobDate)
+public static List<List<T>> Partition<T>(List<T> source, int numberOfPartitions)
+{
+    if (numberOfPartitions <= 0)
+        throw new ArgumentException("Number of partitions must be greater than 0");
 
--- Check if data exists in the "In Memory" table for the selected date
-VAR isInMemory = 
-    CALCULATE(
-        DISTINCTCOUNT('In Memory'[CoB Date ID]),
-        KEEPFILTERS('In Memory'[CoB Date ID] = selectedCobDateId)
-    ) > 0
+    var partitioned = new List<List<T>>();
+    int totalItems = source.Count;
 
-RETURN 
-    CALCULATE(
-        SUM('Z Extended Model'[fact_value_usd]),
-        FILTER(
-            'Z Extended Model',
-            -- Apply filter only when the data is NOT in memory
-            NOT isInMemory && NOT ISBLANK('Z Extended Model'[fact_book_id])
-        )
-    )
+    // Ensure we have at most 'numberOfPartitions' partitions
+    int minPartitionSize = totalItems / numberOfPartitions;
+    int remainder = totalItems % numberOfPartitions; // Extra items to distribute
+
+    int currentIndex = 0;
+    for (int i = 0; i < numberOfPartitions; i++)
+    {
+        int currentPartitionSize = minPartitionSize + (i < remainder ? 1 : 0); // Distribute extra items evenly
+        var chunk = source.Skip(currentIndex).Take(currentPartitionSize).ToList();
+        partitioned.Add(chunk);
+        currentIndex += currentPartitionSize;
+    }
+
+    return partitioned;
+}
