@@ -1,42 +1,24 @@
-private static readonly SemaphoreSlim _semaphore = new SemaphoreSlim(10); // Limit to 10 threads
+using System;
+using System.Collections.Generic;
 
-private async Task LogQueryUpdate(QueryRuntimeEntity item, QueryOutput output)
+class Program
 {
-    await _semaphore.WaitAsync(); // Acquire a semaphore slot
-
-    try
+    static void Shuffle<T>(IList<T> list)
     {
-        await using var dbCxt = new DatabaseContext();
-        var exceptionMessage = new System.Text.StringBuilder();
-
-        var ex = output.E;
-        while (ex != null)
+        Random random = new Random();
+        int n = list.Count;
+        for (int i = n - 1; i > 0; i--)
         {
-            exceptionMessage.Append(ex.ToString());
-            exceptionMessage.AppendLine();
-            ex = ex.InnerException;
-        }
-
-        var f = await dbCxt.QueryRuntimes
-            .Where(x => x.RuntimeId == item.RuntimeId)
-            .FirstOrDefaultAsync();
-
-        if (f != null)
-        {
-            f.StartDateTime = item.StartDateTime.HasValue && item.StartDateTime > DateTime.MinValue ? item.StartDateTime : null;
-            f.EndDateTime = item.EndDateTime.HasValue && item.EndDateTime > DateTime.MinValue ? item.EndDateTime : null;
-            f.RuntimeMs = item.RuntimeMs.HasValue && item.RuntimeMs > 0 ? item.RuntimeMs : null;
-            f.Status = output.E != null ? "Failed" : output.Status;
-            f.Errors = exceptionMessage.ToString();
-            f.DataTransferStartTime = item.DataTransferStartTime.HasValue && item.DataTransferStartTime > DateTime.MinValue ? item.DataTransferStartTime : null;
-            f.DataTransferEndTime = item.DataTransferEndTime.HasValue && item.DataTransferEndTime > DateTime.MinValue ? item.DataTransferEndTime : null;
-            f.DataTransferInMs = item.DataTransferInMs.HasValue ? item.DataTransferInMs : null;
-
-            await dbCxt.SaveChangesAsync();
+            int j = random.Next(0, i + 1);
+            (list[i], list[j]) = (list[j], list[i]); // Swap elements
         }
     }
-    finally
+
+    static void Main()
     {
-        _semaphore.Release(); // Release the semaphore slot
+        List<int> numbers = new List<int> { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+        Shuffle(numbers);
+        
+        Console.WriteLine(string.Join(", ", numbers));
     }
 }
