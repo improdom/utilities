@@ -1,23 +1,42 @@
-public static List<List<T>> Partition<T>(List<T> source, int numberOfPartitions)
+private static readonly SemaphoreSlim _semaphore = new SemaphoreSlim(10); // Limit to 10 threads
+
+private async Task LogQueryUpdate(QueryRuntimeEntity item, QueryOutput output)
 {
-    if (numberOfPartitions <= 0)
-        throw new ArgumentException("Number of partitions must be greater than 0");
+    await _semaphore.WaitAsync(); // Acquire a semaphore slot
 
-    var partitioned = new List<List<T>>();
-    int totalItems = source.Count;
-
-    // Ensure we have at most 'numberOfPartitions' partitions
-    int minPartitionSize = totalItems / numberOfPartitions;
-    int remainder = totalItems % numberOfPartitions; // Extra items to distribute
-
-    int currentIndex = 0;
-    for (int i = 0; i < numberOfPartitions; i++)
+    try
     {
-        int currentPartitionSize = minPartitionSize + (i < remainder ? 1 : 0); // Distribute extra items evenly
-        var chunk = source.Skip(currentIndex).Take(currentPartitionSize).ToList();
-        partitioned.Add(chunk);
-        currentIndex += currentPartitionSize;
-    }
+        await using var dbCxt = new DatabaseContext();
+        var exceptionMessage = new System.Text.StringBuilder();
 
-    return partitioned;
+        var ex = output.E;
+        while (ex != null)
+        {
+            exceptionMessage.Append(ex.ToString());
+            exceptionMessage.AppendLine();
+            ex = ex.InnerException;
+        }
+
+        var f = await dbCxt.QueryRuntimes
+            .Where(x => x.RuntimeId == item.RuntimeId)
+            .FirstOrDefaultAsync();
+
+        if (f != null)
+        {
+            f.StartDateTime = item.StartDateTime.HasValue && item.StartDateTime > DateTime.MinValue ? item.StartDateTime : null;
+            f.EndDateTime = item.EndDateTime.HasValue && item.EndDateTime > DateTime.MinValue ? item.EndDateTime : null;
+            f.RuntimeMs = item.RuntimeMs.HasValue && item.RuntimeMs > 0 ? item.RuntimeMs : null;
+            f.Status = output.E != null ? "Failed" : output.Status;
+            f.Errors = exceptionMessage.ToString();
+            f.DataTransferStartTime = item.DataTransferStartTime.HasValue && item.DataTransferStartTime > DateTime.MinValue ? item.DataTransferStartTime : null;
+            f.DataTransferEndTime = item.DataTransferEndTime.HasValue && item.DataTransferEndTime > DateTime.MinValue ? item.DataTransferEndTime : null;
+            f.DataTransferInMs = item.DataTransferInMs.HasValue ? item.DataTransferInMs : null;
+
+            await dbCxt.SaveChangesAsync();
+        }
+    }
+    finally
+    {
+        _semaphore.Release(); // Release the semaphore slot
+    }
 }
