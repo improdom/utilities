@@ -1,24 +1,41 @@
-using System;
-using System.Collections.Generic;
+BASE_VALUE_USD =
+VAR selectedCobs = ALLSELECTED ( 'CoB Date'[CoB Date] )
+VAR selectedCobDateIds =
+    SELECTCOLUMNS(
+        FILTER ( 'CoB Date', 'CoB Date'[CoB Date] IN selectedCobs ),
+        "CoB Date ID", 'CoB Date'[cob_date_id]
+    )
+VAR totalSelected = COUNTROWS( selectedCobDateIds )
+VAR totalInMemory =
+    CALCULATE(
+        DISTINCTCOUNT ( 'In Memory'[cob_date_id] ),
+        KEEPFILTERS ( 'In Memory'[cob_date_id] IN selectedCobDateIds ),
+        REMOVEFILTERS()
+    )
+VAR isInMemory = totalSelected = totalInMemory
 
-class Program
-{
-    static void Shuffle<T>(IList<T> list)
-    {
-        Random random = new Random();
-        int n = list.Count;
-        for (int i = n - 1; i > 0; i--)
-        {
-            int j = random.Next(0, i + 1);
-            (list[i], list[j]) = (list[j], list[i]); // Swap elements
-        }
-    }
-
-    static void Main()
-    {
-        List<int> numbers = new List<int> { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
-        Shuffle(numbers);
-        
-        Console.WriteLine(string.Join(", ", numbers));
-    }
-}
+-- Check if it's a total row and manually sum values instead of issuing a second query
+RETURN 
+IF(
+    ISINSCOPE ( 'CoB Date'[CoB Date] ),  -- Ensures only row-level calculations are done
+    IF(
+        isInMemory,
+        SUM ( 'Extended Model'[fact_value_usd] ),
+        CALCULATE(
+            SUM ( 'Extended Model'[fact_value_usd] ),
+            KEEPFILTERS( 'Extended Model'[fact_updated_ts] <> BLANK() )
+        )
+    ),
+    -- Force total calculation in a way that prevents Power BI from issuing a second query
+    SUMX(
+        VALUES('CoB Date'[CoB Date]),
+        IF(
+            isInMemory,
+            SUM ( 'Extended Model'[fact_value_usd] ),
+            CALCULATE(
+                SUM ( 'Extended Model'[fact_value_usd] ),
+                KEEPFILTERS( 'Extended Model'[fact_updated_ts] <> BLANK() )
+            )
+        )
+    )
+)
