@@ -1,41 +1,12 @@
-BASE_VALUE_USD =
-VAR selectedCobs = ALLSELECTED ( 'CoB Date'[CoB Date] )
-VAR selectedCobDateIds =
-    SELECTCOLUMNS(
-        FILTER ( 'CoB Date', 'CoB Date'[CoB Date] IN selectedCobs ),
-        "CoB Date ID", 'CoB Date'[cob_date_id]
-    )
-VAR totalSelected = COUNTROWS( selectedCobDateIds )
-VAR totalInMemory =
-    CALCULATE(
-        DISTINCTCOUNT ( 'In Memory'[cob_date_id] ),
-        KEEPFILTERS ( 'In Memory'[cob_date_id] IN selectedCobDateIds ),
-        REMOVEFILTERS()
-    )
-VAR isInMemory = totalSelected = totalInMemory
+Hi Alhad,
 
--- Check if it's a total row and manually sum values instead of issuing a second query
-RETURN 
-IF(
-    ISINSCOPE ( 'CoB Date'[CoB Date] ),  -- Ensures only row-level calculations are done
-    IF(
-        isInMemory,
-        SUM ( 'Extended Model'[fact_value_usd] ),
-        CALCULATE(
-            SUM ( 'Extended Model'[fact_value_usd] ),
-            KEEPFILTERS( 'Extended Model'[fact_updated_ts] <> BLANK() )
-        )
-    ),
-    -- Force total calculation in a way that prevents Power BI from issuing a second query
-    SUMX(
-        VALUES('CoB Date'[CoB Date]),
-        IF(
-            isInMemory,
-            SUM ( 'Extended Model'[fact_value_usd] ),
-            CALCULATE(
-                SUM ( 'Extended Model'[fact_value_usd] ),
-                KEEPFILTERS( 'Extended Model'[fact_updated_ts] <> BLANK() )
-            )
-        )
-    )
-)
+We’re currently experiencing performance issues when our semantic model is being refreshed or processed. During this time, users running queries face slow performance, and in many cases, queries fail.
+
+To address this, we’d like to test the scale-out functionality, which would allow us to create and manage separate Read (for queries) and Write (for data loading) replicas with load balancing. This could help mitigate the performance impact during refreshes.
+
+Currently, this feature is disabled in our environment. Would it be possible to enable it temporarily so we can test and evaluate its impact on performance?
+
+Let me know if you need any additional details.
+
+Best regards,
+[Your Name]
