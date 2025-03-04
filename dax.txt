@@ -50,21 +50,46 @@ class XmlaTcpProxy
         return PBI_SERVER_2;
     }
 
-    private static async Task ForwardQuery(string server, string xmlaQuery, NetworkStream clientStream)
+   private static async Task ForwardQuery(string server, string xmlaQuery, NetworkStream clientStream)
+{
+    string modifiedQuery = ModifyXmlaRequest(xmlaQuery, server);
+    
+    TcpClient backendClient = new TcpClient();
+    await backendClient.ConnectAsync(server, 2382);
+    NetworkStream backendStream = backendClient.GetStream();
+
+    byte[] queryBytes = Encoding.UTF8.GetBytes(modifiedQuery);
+    await backendStream.WriteAsync(queryBytes, 0, queryBytes.Length);
+
+    byte[] responseBuffer = new byte[8192];
+    int responseBytes = await backendStream.ReadAsync(responseBuffer, 0, responseBuffer.Length);
+    await clientStream.WriteAsync(responseBuffer, 0, responseBytes);
+
+    backendClient.Close();
+}
+
+private static string ModifyXmlaRequest(string xmlaQuery, string newServer)
+{
+    try
     {
-        TcpClient backendClient = new TcpClient();
-        await backendClient.ConnectAsync(server, 2382);
-        NetworkStream backendStream = backendClient.GetStream();
+        XmlDocument xmlDoc = new XmlDocument();
+        xmlDoc.LoadXml(xmlaQuery);
 
-        byte[] queryBytes = Encoding.UTF8.GetBytes(xmlaQuery);
-        await backendStream.WriteAsync(queryBytes, 0, queryBytes.Length);
+        XmlNode? dataSourceNode = xmlDoc.SelectSingleNode("//DataSource[@name]");
+        if (dataSourceNode != null)
+        {
+            dataSourceNode.Attributes["name"].Value = newServer;
+        }
 
-        byte[] responseBuffer = new byte[8192];
-        int responseBytes = await backendStream.ReadAsync(responseBuffer, 0, responseBuffer.Length);
-        await clientStream.WriteAsync(responseBuffer, 0, responseBytes);
-
-        backendClient.Close();
+        return xmlDoc.OuterXml;
     }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error modifying XMLA request: {ex.Message}");
+        return xmlaQuery; // If modification fails, return original query
+    }
+}
+
 }
 
 class Program
