@@ -1,12 +1,76 @@
-Hi Alhad,
+using System;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using System.Threading.Tasks;
 
-We’re currently experiencing performance issues when our semantic model is being refreshed or processed. During this time, users running queries face slow performance, and in many cases, queries fail.
+class XmlaTcpProxy
+{
+    private const int LISTEN_PORT = 2382; // Standard XMLA Port
+    private const string PBI_SERVER_1 = "pbiserver1.api.powerbi.com";
+    private const string PBI_SERVER_2 = "pbiserver2.api.powerbi.com";
 
-To address this, we’d like to test the scale-out functionality, which would allow us to create and manage separate Read (for queries) and Write (for data loading) replicas with load balancing. This could help mitigate the performance impact during refreshes.
+    public static async Task StartProxy()
+    {
+        TcpListener listener = new TcpListener(IPAddress.Any, LISTEN_PORT);
+        listener.Start();
+        Console.WriteLine($"XMLA Proxy listening on port {LISTEN_PORT}...");
 
-Currently, this feature is disabled in our environment. Would it be possible to enable it temporarily so we can test and evaluate its impact on performance?
+        while (true)
+        {
+            TcpClient client = await listener.AcceptTcpClientAsync();
+            _ = HandleClient(client);
+        }
+    }
 
-Let me know if you need any additional details.
+    private static async Task HandleClient(TcpClient client)
+    {
+        try
+        {
+            NetworkStream clientStream = client.GetStream();
+            byte[] buffer = new byte[8192];
+            int bytesRead = await clientStream.ReadAsync(buffer, 0, buffer.Length);
+            string receivedQuery = Encoding.UTF8.GetString(buffer, 0, bytesRead);
 
-Best regards,
-[Your Name]
+            Console.WriteLine($"Received XMLA Query:\n{receivedQuery}");
+
+            string targetServer = DetermineTargetServer(receivedQuery);
+            await ForwardQuery(targetServer, receivedQuery, clientStream);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error handling client: {ex.Message}");
+        }
+    }
+
+    private static string DetermineTargetServer(string xmlaQuery)
+    {
+        if (xmlaQuery.Contains("[COB_DATE] >= TODAY()-2"))
+            return PBI_SERVER_1;
+        return PBI_SERVER_2;
+    }
+
+    private static async Task ForwardQuery(string server, string xmlaQuery, NetworkStream clientStream)
+    {
+        TcpClient backendClient = new TcpClient();
+        await backendClient.ConnectAsync(server, 2382);
+        NetworkStream backendStream = backendClient.GetStream();
+
+        byte[] queryBytes = Encoding.UTF8.GetBytes(xmlaQuery);
+        await backendStream.WriteAsync(queryBytes, 0, queryBytes.Length);
+
+        byte[] responseBuffer = new byte[8192];
+        int responseBytes = await backendStream.ReadAsync(responseBuffer, 0, responseBuffer.Length);
+        await clientStream.WriteAsync(responseBuffer, 0, responseBytes);
+
+        backendClient.Close();
+    }
+}
+
+class Program
+{
+    static async Task Main()
+    {
+        await XmlaTcpProxy.StartProxy();
+    }
+}
