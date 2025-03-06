@@ -1,101 +1,17 @@
-using System;
-using System.Net;
-using System.Net.Sockets;
-using System.Text;
-using System.Threading.Tasks;
-
-class XmlaTcpProxy
-{
-    private const int LISTEN_PORT = 2382; // Standard XMLA Port
-    private const string PBI_SERVER_1 = "pbiserver1.api.powerbi.com";
-    private const string PBI_SERVER_2 = "pbiserver2.api.powerbi.com";
-
-    public static async Task StartProxy()
+ static string ConvertToFriendlyName(string input)
     {
-        TcpListener listener = new TcpListener(IPAddress.Any, LISTEN_PORT);
-        listener.Start();
-        Console.WriteLine($"XMLA Proxy listening on port {LISTEN_PORT}...");
+        if (string.IsNullOrEmpty(input))
+            return input;
 
-        while (true)
-        {
-            TcpClient client = await listener.AcceptTcpClientAsync();
-            _ = HandleClient(client);
-        }
+        // Replace underscores with spaces
+        string result = input.Replace("_", " ");
+
+        // Split words based on numbers or underscores to handle cases like "rf1_currency_1"
+        result = Regex.Replace(result, @"(\d+)", " $1");
+
+        // Convert to Title Case
+        TextInfo textInfo = CultureInfo.CurrentCulture.TextInfo;
+        result = textInfo.ToTitleCase(result.ToLower());
+
+        return result.Trim();
     }
-
-    private static async Task HandleClient(TcpClient client)
-    {
-        try
-        {
-            NetworkStream clientStream = client.GetStream();
-            byte[] buffer = new byte[8192];
-            int bytesRead = await clientStream.ReadAsync(buffer, 0, buffer.Length);
-            string receivedQuery = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-
-            Console.WriteLine($"Received XMLA Query:\n{receivedQuery}");
-
-            string targetServer = DetermineTargetServer(receivedQuery);
-            await ForwardQuery(targetServer, receivedQuery, clientStream);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error handling client: {ex.Message}");
-        }
-    }
-
-    private static string DetermineTargetServer(string xmlaQuery)
-    {
-        if (xmlaQuery.Contains("[COB_DATE] >= TODAY()-2"))
-            return PBI_SERVER_1;
-        return PBI_SERVER_2;
-    }
-
-   private static async Task ForwardQuery(string server, string xmlaQuery, NetworkStream clientStream)
-{
-    string modifiedQuery = ModifyXmlaRequest(xmlaQuery, server);
-    
-    TcpClient backendClient = new TcpClient();
-    await backendClient.ConnectAsync(server, 2382);
-    NetworkStream backendStream = backendClient.GetStream();
-
-    byte[] queryBytes = Encoding.UTF8.GetBytes(modifiedQuery);
-    await backendStream.WriteAsync(queryBytes, 0, queryBytes.Length);
-
-    byte[] responseBuffer = new byte[8192];
-    int responseBytes = await backendStream.ReadAsync(responseBuffer, 0, responseBuffer.Length);
-    await clientStream.WriteAsync(responseBuffer, 0, responseBytes);
-
-    backendClient.Close();
-}
-
-private static string ModifyXmlaRequest(string xmlaQuery, string newServer)
-{
-    try
-    {
-        XmlDocument xmlDoc = new XmlDocument();
-        xmlDoc.LoadXml(xmlaQuery);
-
-        XmlNode? dataSourceNode = xmlDoc.SelectSingleNode("//DataSource[@name]");
-        if (dataSourceNode != null)
-        {
-            dataSourceNode.Attributes["name"].Value = newServer;
-        }
-
-        return xmlDoc.OuterXml;
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Error modifying XMLA request: {ex.Message}");
-        return xmlaQuery; // If modification fails, return original query
-    }
-}
-
-}
-
-class Program
-{
-    static async Task Main()
-    {
-        await XmlaTcpProxy.StartProxy();
-    }
-}
