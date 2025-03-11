@@ -1,17 +1,6 @@
- static string ConvertToFriendlyName(string input)
-    {
-        if (string.IsNullOrEmpty(input))
-            return input;
-
-        // Replace underscores with spaces
-        string result = input.Replace("_", " ");
-
-        // Split words based on numbers or underscores to handle cases like "rf1_currency_1"
-        result = Regex.Replace(result, @"(\d+)", " $1");
-
-        // Convert to Title Case
-        TextInfo textInfo = CultureInfo.CurrentCulture.TextInfo;
-        result = textInfo.ToTitleCase(result.ToLower());
-
-        return result.Trim();
-    }
+Load at least one full COB for evaluation.
+Assess data volumes in in-memory tables to determine model feasibility.
+Incorporate an approach to shift calculations to ETL for improved DirectQuery performance.
+Obtain exception approval from the Central Team to enable Query Scale-Out.
+Update the Power BI model in PROD to use the on-prem gateway.
+Streamline reference data processing by delegating transformations to the Reference Team, eliminating redundancy and improving delivery speed.
