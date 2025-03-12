@@ -1,6 +1,8 @@
-Load at least one full COB for evaluation.
-Assess data volumes in in-memory tables to determine model feasibility.
-Incorporate an approach to shift calculations to ETL for improved DirectQuery performance.
-Obtain exception approval from the Central Team to enable Query Scale-Out.
-Update the Power BI model in PROD to use the on-prem gateway.
-Streamline reference data processing by delegating transformations to the Reference Team, eliminating redundancy and improving delivery speed.
+Hi Sai,
+
+Regarding data volume size, providing the raw numbers alone may not be helpful since we don’t have a comparable model. The new model has fewer tables and columns, making it difficult to directly compare its size to the current model. We need a structured approach to measure and evaluate these numbers effectively.
+
+Additionally, the total size of the data loaded into memory is the sum of all dimension tables and the aggregation table.
+
+Thanks,
+Julio Diaz
