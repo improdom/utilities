@@ -1,5 +1,9 @@
-Hi Sai,
-
-We’re not just looking to replicate PROD functionality. MRV definitions are maintained directly by users, with metadata uploaded to the MRV database through a dedicated tool called MRD. When the MRV Builder runs, it reads this metadata and dynamically generates the required calculations on the fly. The initial goal was to identify a tool capable of handling this process efficiently, beyond using SSAS or Power BI.
-
-Power BI DAX works well for this purpose. Its API allows us to dynamically create and run calculations without rebuilding the model each time. However, performance deteriorates in scenarios where MRVs need to run in Databricks through Direct Query mode, this is the area we're looking to improve.
+Gross_InstTIC = 
+IF(
+    ISINSCOPE('Position'[Alternate Instrument ID1]), 
+    SUM('Position'[Abs]),  -- At child level, return Abs
+    CALCULATE(
+        SUM('Position'[Abs]),
+        ALLSELECTED('Position'[Alternate Instrument ID1]) -- At parent level, sum all children
+    )
+)
