@@ -1,9 +1,3 @@
-Gross_InstTIC = 
-IF(
-    ISINSCOPE('Position'[Alternate Instrument ID1]), 
-    SUM('Position'[Abs]),  -- At child level, return Abs
-    CALCULATE(
-        SUM('Position'[Abs]),
-        ALLSELECTED('Position'[Alternate Instrument ID1]) -- At parent level, sum all children
-    )
-)
+reg query "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\VSTO Runtime" /s
+
+reg query "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\NET Framework Setup\NDP" /s
