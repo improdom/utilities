@@ -1,23 +1,29 @@
-TV Change EQ Hedge Funds Slide +/-30% =
-VAR StressMag = SELECTEDVALUE( 'Scenario'[Stress Magnitude] )
-VAR MinValue =
-    MINX(
-        FILTER(
-            CROSSJOIN(
-                ALL( 'Scenario'[Scenario Name] ), 
-                ALL( 'Scenario'[Stress Magnitude] )
-            ),
-            NOT( 'Scenario'[Stress Magnitude] IN { -30, 30 } )
+TV Change EQ Hedge Funds Slide +/-30% Temp1 =
+VAR ValidScenarios =
+    FILTER(
+        CROSSJOIN(
+            ALL( 'Scenario'[Scenario Name] ), 
+            ALL( 'Scenario'[Stress Magnitude] )
         ),
-        [TV Change EQ Hedge Funds]
+        NOT( 'Scenario'[Stress Magnitude] IN { -30, 30 } )
     )
 RETURN
+    MINX( ValidScenarios, [TV Change EQ Hedge Funds] )
+
+TV Change EQ Hedge Funds Slide +/-30% =
+VAR TempValue = [TV Change EQ Hedge Funds Slide +/-30% Temp1]
+RETURN
     IF(
-        ISBLANK( MinValue ), 
+        ISBLANK( TempValue ), 
         BLANK(), -- Equivalent to NULL in MDX
-        IF(
-            StressMag IN { -30, 30 }, 
-            BLANK(), -- Scope logic to remove -30% and 30%
-            MinValue
-        )
+        MIN( 0, TempValue )
+    )
+
+TV Change EQ Hedge Funds Slide +/-30% Adjusted =
+VAR StressMag = SELECTEDVALUE( 'Scenario'[Stress Magnitude] )
+RETURN
+    IF(
+        StressMag IN { -30, 30 }, 
+        BLANK(), -- Scope logic to remove -30% and 30%
+        [TV Change EQ Hedge Funds]
     )
