@@ -1,28 +1,44 @@
-TV Change EQ Hedge Funds Slide +/-30% Adjusted =
-VAR StressMag = SELECTEDVALUE( 'Scenario'[Stress Magnitude] )
+Vega_Across_Rates_Slide_200bps = 
+VAR Temp1 = 
+    MAXX(
+        FILTER(
+            ALL('Scenario'[Scenario Name]),  
+            'Scenario'[Stress Magnitude] >= -200 &&
+            'Scenario'[Stress Magnitude] <= 200
+        ),
+        [IR Normal Vega Rate]
+    )
 
-VAR MinValue =
+VAR Temp2 = 
     MINX(
         FILTER(
-            CROSSJOIN(
-                ALL( 'Scenario'[Scenario Name] ), 
-                ALL( 'Scenario'[Stress Magnitude] )
-            ),
-            NOT( 'Scenario'[Stress Magnitude] IN { -30, 30 } )
+            ALL('Scenario'[Scenario Name]),  
+            'Scenario'[Stress Magnitude] >= -200 &&
+            'Scenario'[Stress Magnitude] <= 200
         ),
-        [TV Change EQ Hedge Funds]
+        [IR Normal Vega Rate]
     )
 
-VAR FinalValue =
+VAR Vega_Temp1 = IF( ISBLANK(Temp1), BLANK(), Temp1)
+VAR Vega_Temp2 = IF( ISBLANK(Temp2), BLANK(), Temp2)
+
+VAR Vega_Calc = 
     IF(
-        ISBLANK( MinValue ), 
-        BLANK(), -- Equivalent to NULL in MDX
-        MIN( 0, MinValue ) -- Ensures we take the minimum between 0 and MinValue
+        ISBLANK(Vega_Temp1) && ISBLANK(Vega_Temp2), 
+        BLANK(),
+        IF(
+            ISBLANK(Vega_Temp1),
+            -1 * Vega_Temp2,
+            IF(
+                ISBLANK(Vega_Temp2),
+                Vega_Temp1,
+                IF(
+                    ABS(Vega_Temp1) > ABS(Vega_Temp2),
+                    Vega_Temp1,
+                    Vega_Temp2
+                )
+            )
+        )
     )
 
-RETURN
-    IF(
-        StressMag IN { -30, 30 }, 
-        BLANK(), -- Scope logic to remove -30% and 30%
-        FinalValue
-    )
+RETURN Vega_Calc
