@@ -7,7 +7,23 @@ VAR Temp1 =
             'Scenario'[Stress Magnitude] <= 200
         ),
         [IR Normal Vega Rate]
+    )TV Change EQ Hedge Funds Slide +/-30% Adjusted =
+VAR MinValue =
+    MINX(
+        FILTER(
+            ALL( 'Scenario'[Stress Magnitude] ),
+            NOT( 'Scenario'[Stress Magnitude] IN { -30, 30 } )
+        ),
+        [TV Change EQ Hedge Funds]
     )
+
+RETURN
+    IF(
+        ISBLANK( MinValue ),
+        BLANK(),
+        MIN( 0, MinValue )
+    )
+
 
 VAR Temp2 = 
     MINX(
