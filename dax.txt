@@ -1,16 +1,9 @@
-TV Change EQ Hedge Funds Slide +/-30% Adjusted =
-VAR MinValue =
-    MINX(
-        FILTER(
-            ALL( 'Scenario'[Stress Magnitude] ),
-            NOT( 'Scenario'[Stress Magnitude] IN { -30, 30 } )
-        ),
-        [TV Change EQ Hedge Funds]
-    )
+Delivery Achievements
+Hybrid Reporting Platform: Designed and developed over a decade ago, this platform remains in production today, demonstrating its architectural resilience and long-term value.
+Business Impact: Delivered a robust and scalable foundation for risk reporting, enabling critical Market Risk operations, improving data accessibility, and supporting timely, data-driven decision-making across the organization.
 
-RETURN
-    IF(
-        ISBLANK( MinValue ),
-        BLANK(),
-        MIN( 0, MinValue )
-    )
+Cloud Native Data Aggregation Platform: Serving as technical lead, I designed and led the development of a new application that replaces the legacy SSAS system with a cloud-native architecture using Power BI, Databricks, and a suite of microservices. The platform enables the creation of composite semantic models and manages end-to-end orchestration of data aggregation and model refresh jobs.
+Business Impact: Introduced a modern, scalable, and flexible architecture for market risk data aggregation, improving the speed, reliability, and maintainability of risk reporting pipelines, while preparing the team for future real-time and event-driven analytics capabilities.
+
+Master Risk View Management (MRV DAX Builder and MRV Data Service): Developed a cloud-native system for the dynamic creation and management of complex cube calculations (MRVs).
+Business Impact: Enabled users to extend their analysis capabilities, directly supporting strategic decision-making.
