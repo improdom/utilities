@@ -1,7 +1,1 @@
-Provide ongoing mentorship across teams, strengthening capabilities in Power BI, Databricks, cloud architecture, and engineering best practices. Actively contribute to peer growth through code reviews, technical design discussions, and onboarding support.
-
-Partner closely with the Marvel team by providing the necessary functionalities and technical guidance to support their reporting workflows and development lifecycle using the Power BI semantic model. This includes aligning on requirements, enabling self-service reporting, and ensuring optimal model usage.
-
-Engage directly with Market Risk Officers (MROs) to troubleshoot Power BI/Excel issues, clarify cube behavior, and assist with defining and maintaining Master Risk View (MRV) logic. These efforts ensure data accuracy and usability in their day-to-day risk assessments.
-
-Actively contribute to UBS community and volunteer programs, including Thanksgiving Volunteering, Liberty State Park and Branch Brook Park clean-ups, and reviewing student essays. These experiences reflect my commitment to UBS values and community impact.
+I will drive the adoption of AI-enabled automation within our Power BI and Databricks-based pipelines, enhancing data quality, agility, and insight delivery for advanced Market Risk analysis.
