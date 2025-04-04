@@ -1,1 +1,1 @@
-I will drive the adoption of AI-enabled automation within our Power BI and Databricks-based pipelines, enhancing data quality, agility, and insight delivery for advanced Market Risk analysis.
+As Market Risk adopts Microsoft Fabric, I will lead the development of modern semantic models with advanced analytical capabilities, leveraging the platform’s full potential to support scalable, intelligent risk analysis
