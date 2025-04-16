@@ -1,1 +1,18 @@
-All initiatives align with UBS’s strategic direction on agility, data transformation, and operational excellence.
+TV Change EQ ex Funds - Single Stock +/-20% :=
+VAR Temp1 = [TV Change EQ ex Funds Slide - Single Stock +/-20% Temp1]
+VAR IsValidStress =
+    SELECTEDVALUE('Scenario'[Stress Magnitude]) IN {-0.2, 0.2} &&
+    SELECTEDVALUE('Scenario'[Stress Magnitude]) <> 0
+RETURN
+    IF(
+        NOT IsValidStress,
+        BLANK(),
+        IF(
+            ISBLANK(Temp1),
+            BLANK(),
+            MINX(
+                { [TV Change EQ ex Funds Slide - Single Stock +/-20% Temp1], [Zero] },
+                [Value]
+            )
+        )
+    )
