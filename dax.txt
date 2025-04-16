@@ -1,5 +1,5 @@
-TV Change EQ ex Funds Slide - Single Stock +/-20% :=
-VAR temp1 :=
+TV Change EQ ex Funds Slide - Single Stock +/-20% =
+VAR temp1 =
     CALCULATE (
         MINX (
             CROSSJOIN (
@@ -17,11 +17,8 @@ RETURN
     IF (
         ISBLANK(temp1),
         BLANK(),
-        MINX (
-            {
-                [Zero],
-                temp1
-            },
-            [Value]
+        MIN (
+            [Zero],
+            temp1
         )
     )
