@@ -1,18 +1,27 @@
-TV Change EQ ex Funds - Single Stock +/-20% :=
-VAR Temp1 = [TV Change EQ ex Funds Slide - Single Stock +/-20% Temp1]
-VAR IsValidStress =
-    SELECTEDVALUE('Scenario'[Stress Magnitude]) IN {-0.2, 0.2} &&
-    SELECTEDVALUE('Scenario'[Stress Magnitude]) <> 0
+TV Change EQ ex Funds Slide - Single Stock +/-20% :=
+VAR temp1 :=
+    CALCULATE (
+        MINX (
+            CROSSJOIN (
+                VALUES('Scenario'[Scenario Name]),
+                FILTER (
+                    VALUES('Scenario'[Stress Magnitude]),
+                    'Scenario'[Stress Magnitude] IN { -0.2, 0.2 }
+                )
+            ),
+            [TV Change EQ ex Funds - Single Stock]
+        ),
+        'Scenario'[Stress Magnitude] = 0
+    )
 RETURN
-    IF(
-        NOT IsValidStress,
+    IF (
+        ISBLANK(temp1),
         BLANK(),
-        IF(
-            ISBLANK(Temp1),
-            BLANK(),
-            MINX(
-                { [TV Change EQ ex Funds Slide - Single Stock +/-20% Temp1], [Zero] },
-                [Value]
-            )
+        MINX (
+            {
+                [Zero],
+                temp1
+            },
+            [Value]
         )
     )
