@@ -1,188 +1,19 @@
-using Microsoft.AnalysisServices.Tabular;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-
-public class PowerBiModelMappingService
-{
-    private readonly Server _server;
-    private readonly string _databaseName;
-    private Dictionary<string, Dictionary<string, string>> _tableMappings;
-    private DateTime _lastLoadTime;
-    private readonly TimeSpan _refreshInterval = TimeSpan.FromHours(2);
-
-    public PowerBiModelMappingService(Server server, string databaseName)
-    {
-        _server = server ?? throw new ArgumentNullException(nameof(server));
-        _databaseName = databaseName ?? throw new ArgumentNullException(nameof(databaseName));
-
-        LoadMappings();
-    }
-
-    private void LoadMappings()
-    {
-        _tableMappings = new Dictionary<string, Dictionary<string, string>>();
-        var database = _server.Databases.FindByName(_databaseName);
-
-        if (database == null)
-            throw new Exception($"Database {_databaseName} not found on server.");
-
-        foreach (var table in database.Model.Tables)
-        {
-            var tableMapping = table.Columns
-                .OfType<DataColumn>()
-                .Where(c => !string.IsNullOrEmpty(c.SourceColumn))
-                .ToDictionary(c => c.SourceColumn, c => c.Name);
-
-            _tableMappings[table.Name] = tableMapping;
-        }
-
-        _lastLoadTime = DateTime.UtcNow;
-        Console.WriteLine($"Mappings loaded successfully at {_lastLoadTime}.");
-    }
-
-    private void EnsureMappingsAreFresh()
-    {
-        if (DateTime.UtcNow - _lastLoadTime > _refreshInterval)
-        {
-            Console.WriteLine("Refreshing mappings due to timeout...");
-            LoadMappings();
-        }
-    }
-
-    public string GetFriendlyName(string tableName, string sourceColumnName)
-    {
-        try
-        {
-            EnsureMappingsAreFresh();
-
-            if (_tableMappings.TryGetValue(tableName, out var columns) && columns.TryGetValue(sourceColumnName, out var friendlyName))
-            {
-                return friendlyName;
-            }
-
-            Console.WriteLine($"Mapping not found for Table: {tableName}, Column: {sourceColumnName}. Attempting live fetch...");
-            return TryLiveFetchFriendlyName(tableName, sourceColumnName);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error retrieving friendly name: {ex.Message}");
-            return null;
-        }
-    }
-
-    private string TryLiveFetchFriendlyName(string tableName, string sourceColumnName)
-    {
-        try
-        {
-            var database = _server.Databases.FindByName(_databaseName);
-            var table = database?.Model.Tables.Find(tableName);
-
-            if (table == null)
-                return null;
-
-            var column = table.Columns
-                .OfType<DataColumn>()
-                .FirstOrDefault(c => c.SourceColumn.Equals(sourceColumnName, StringComparison.OrdinalIgnoreCase));
-
-            if (column != null)
-            {
-                // Update cache dynamically
-                if (!_tableMappings.ContainsKey(tableName))
-                {
-                    _tableMappings[tableName] = new Dictionary<string, string>();
-                }
-
-                _tableMappings[tableName][sourceColumnName] = column.Name;
-
-                Console.WriteLine($"Live fetch successful: {sourceColumnName} -> {column.Name}");
-                return column.Name;
-            }
-
-            return null;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Live fetch failed: {ex.Message}");
-            return null;
-        }
-    }
-
-    public Dictionary<string, string> GetAllMappingsForTable(string tableName)
-    {
-        try
-        {
-            EnsureMappingsAreFresh();
-            return _tableMappings.TryGetValue(tableName, out var mappings) ? mappings : null;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error retrieving mappings for table {tableName}: {ex.Message}");
-            return null;
-        }
-    }
-
-    public void ForceRefresh()
-    {
-        Console.WriteLine("Force refreshing mappings manually...");
-        LoadMappings();
-    }
-}
-
-
-
-
-private void AddTableToPerspective(Model model, Table table, string perspectiveName, bool removeOrphanedPerspectiveColumns)
-{
-    var perspective = model.Perspectives.Find(perspectiveName);
-    if (perspective == null)
-    {
-        Console.WriteLine($"Perspective {perspectiveName} does not exist. Creating new perspective.");
-        perspective = new Perspective { Name = perspectiveName };
-        model.Perspectives.Add(perspective);
-    }
-
-    var tableColumns = table.Columns.OfType<DataColumn>().Select(c => c.Name).ToHashSet();
-    var existingPerspectiveColumns = perspective.Columns
-        .Where(c => c.Table.Name == table.Name)
-        .ToList();
-
-    foreach (var columnName in tableColumns)
-    {
-        if (!existingPerspectiveColumns.Any(c => c.Name == columnName))
-        {
-            perspective.Columns.Add(new PerspectiveColumn
-            {
-                Name = columnName,
-                Table = table
-            });
-        }
-    }
-
-    if (removeOrphanedPerspectiveColumns)
-    {
-        foreach (var orphan in existingPerspectiveColumns.Where(c => !tableColumns.Contains(c.Name)).ToList())
-        {
-            perspective.Columns.Remove(orphan);
-        }
-    }
-}
-
 using Microsoft.Azure.Databricks.Client;
+using Microsoft.Azure.Databricks.Client.Models;
 using System;
 using System.Collections.Generic;
-using System.Data.SqlClient;
 using System.Linq;
 using System.Threading.Tasks;
 
 public class DeltaTableManager
 {
-    private readonly string _sqlWarehouseConnectionString;
+    private readonly IDatabricksClient _databricksClient;
+    private const int MaxRetryAttempts = 3;
+    private const int RetryDelayMilliseconds = 2000;
 
-    public DeltaTableManager(string sqlWarehouseConnectionString)
+    public DeltaTableManager(IDatabricksClient databricksClient)
     {
-        _sqlWarehouseConnectionString = sqlWarehouseConnectionString;
+        _databricksClient = databricksClient;
     }
 
     public async Task CreateOrUpdateTableAsync(
@@ -221,50 +52,39 @@ public class DeltaTableManager
             if (columnsToRemove.Any()) Console.WriteLine($"Columns to remove: {string.Join(", ", columnsToRemove)}");
             if (columnsToUpdateType.Any()) Console.WriteLine($"Columns to update type: {string.Join(", ", columnsToUpdateType.Select(c => c.ColumnName))}");
 
-            using (var connection = new SqlConnection(_sqlWarehouseConnectionString))
+            try
             {
-                await connection.OpenAsync();
-                using (var transaction = connection.BeginTransaction())
+                var commands = new List<string>();
+
+                foreach (var column in columnsToAdd)
                 {
-                    try
-                    {
-                        foreach (var column in columnsToAdd)
-                        {
-                            string sql = $"ALTER TABLE {fullTableName} ADD COLUMNS ({column} {columns[column]})";
-                            await ExecuteSqlAsync(sql, connection, transaction);
-                        }
-
-                        foreach (var column in columnsToRemove)
-                        {
-                            string sql = $"ALTER TABLE {fullTableName} DROP COLUMN {column}";
-                            await ExecuteSqlAsync(sql, connection, transaction);
-                        }
-
-                        foreach (var (columnName, newType) in columnsToUpdateType)
-                        {
-                            // For updating type safely, we drop and add if ALTER COLUMN is not supported
-                            string tempColumn = columnName + "_temp";
-
-                            string addTempColumnSql = $"ALTER TABLE {fullTableName} ADD COLUMNS ({tempColumn} {newType})";
-                            string copyDataSql = $"UPDATE {fullTableName} SET {tempColumn} = {columnName}";
-                            string dropOldColumnSql = $"ALTER TABLE {fullTableName} DROP COLUMN {columnName}";
-                            string renameTempColumnSql = $"ALTER TABLE {fullTableName} RENAME COLUMN {tempColumn} TO {columnName}";
-
-                            await ExecuteSqlAsync(addTempColumnSql, connection, transaction);
-                            await ExecuteSqlAsync(copyDataSql, connection, transaction);
-                            await ExecuteSqlAsync(dropOldColumnSql, connection, transaction);
-                            await ExecuteSqlAsync(renameTempColumnSql, connection, transaction);
-                        }
-
-                        transaction.Commit();
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Error occurred during schema update: {ex.Message}");
-                        transaction.Rollback();
-                        throw;
-                    }
+                    commands.Add($"ALTER TABLE {fullTableName} ADD COLUMNS ({column} {columns[column]})");
                 }
+
+                foreach (var column in columnsToRemove)
+                {
+                    commands.Add($"ALTER TABLE {fullTableName} DROP COLUMN {column}");
+                }
+
+                foreach (var (columnName, newType) in columnsToUpdateType)
+                {
+                    string tempColumn = columnName + "_temp";
+
+                    commands.Add($"ALTER TABLE {fullTableName} ADD COLUMNS ({tempColumn} {newType})");
+                    commands.Add($"UPDATE {fullTableName} SET {tempColumn} = {columnName}");
+                    commands.Add($"ALTER TABLE {fullTableName} DROP COLUMN {columnName}");
+                    commands.Add($"ALTER TABLE {fullTableName} RENAME COLUMN {tempColumn} TO {columnName}");
+                }
+
+                foreach (var sql in commands)
+                {
+                    await ExecuteSqlAsync(sql);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error occurred during schema update: {ex.Message}");
+                throw;
             }
         }
     }
@@ -303,22 +123,26 @@ public class DeltaTableManager
 
     private async Task<string> ExecuteSqlAsync(string sql)
     {
-        using (var connection = new SqlConnection(_sqlWarehouseConnectionString))
+        for (int attempt = 1; attempt <= MaxRetryAttempts; attempt++)
         {
-            await connection.OpenAsync();
-            using (var command = new SqlCommand(sql, connection))
+            try
             {
-                var result = await command.ExecuteScalarAsync();
-                return result?.ToString() ?? string.Empty;
+                var command = new Command
+                {
+                    Language = CommandLanguage.SQL,
+                    CommandText = sql
+                };
+
+                var result = await _databricksClient.Command.Execute(command);
+                return result?.Result ?? string.Empty;
+            }
+            catch (Exception ex) when (attempt < MaxRetryAttempts)
+            {
+                Console.WriteLine($"Attempt {attempt} failed: {ex.Message}. Retrying in {RetryDelayMilliseconds}ms...");
+                await Task.Delay(RetryDelayMilliseconds);
             }
         }
-    }
 
-    private async Task ExecuteSqlAsync(string sql, SqlConnection connection, SqlTransaction transaction)
-    {
-        using (var command = new SqlCommand(sql, connection, transaction))
-        {
-            await command.ExecuteNonQueryAsync();
-        }
+        throw new Exception($"Failed to execute SQL after {MaxRetryAttempts} attempts: {sql}");
     }
 }
