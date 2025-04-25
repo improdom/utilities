@@ -133,200 +133,41 @@ public class PowerBiModelMappingService
 
 
 
-using Microsoft.AnalysisServices.Tabular;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-
-public class PowerBiTableManager
+private void AddTableToPerspective(Model model, Table table, string perspectiveName, bool removeOrphanedPerspectiveColumns)
 {
-    private readonly string _serverConnectionString;
-
-    public PowerBiTableManager(string serverConnectionString)
+    var perspective = model.Perspectives.Find(perspectiveName);
+    if (perspective == null)
     {
-        _serverConnectionString = serverConnectionString;
+        Console.WriteLine($"Perspective {perspectiveName} does not exist. Creating new perspective.");
+        perspective = new Perspective { Name = perspectiveName };
+        model.Perspectives.Add(perspective);
     }
 
-    public async Task CreateOrUpdateTableAsync(
-        string databaseName,
-        string tableName,
-        Dictionary<string, DataType> columns,
-        string perspectiveName = null,
-        bool updatePerspectiveOnly = false,
-        bool removeOrphanedPerspectiveColumns = false
-    )
+    var tableColumns = table.Columns.OfType<DataColumn>().Select(c => c.Name).ToHashSet();
+    var existingPerspectiveColumns = perspective.Columns
+        .Where(c => c.Table.Name == table.Name)
+        .ToList();
+
+    foreach (var columnName in tableColumns)
     {
-        using (var server = new Server())
+        if (!existingPerspectiveColumns.Any(c => c.Name == columnName))
         {
-            server.Connect(_serverConnectionString);
-            var database = server.Databases.FindByName(databaseName);
-
-            if (database == null)
-                throw new Exception($"Database {databaseName} not found.");
-
-            if (database.Model.ModelMode != ModelModeType.Store)
-                throw new Exception("Model must be in ReadWrite mode to apply changes.");
-
-            var model = database.Model;
-            var table = model.Tables.Find(tableName);
-
-            if (updatePerspectiveOnly)
+            perspective.Columns.Add(new PerspectiveColumn
             {
-                if (table == null)
-                    throw new Exception($"Table {tableName} not found for perspective update.");
-
-                if (!string.IsNullOrEmpty(perspectiveName))
-                {
-                    AddTableToPerspective(model, table, perspectiveName, removeOrphanedPerspectiveColumns);
-                    model.SaveChanges();
-                }
-                return;
-            }
-
-            if (table == null)
-            {
-                Console.WriteLine($"Table {tableName} does not exist. Creating new table...");
-
-                table = new Table { Name = tableName };                
-                foreach (var column in columns)
-                {
-                    table.Columns.Add(new DataColumn
-                    {
-                        Name = column.Key,
-                        DataType = column.Value
-                    });
-                }
-
-                table.Partitions.Add(new Partition
-                {
-                    Name = "InitialPartition",
-                    Source = new MPartitionSource { Expression = "let Source = #table({}, {}) in Source" }
-                });
-
-                model.Tables.Add(table);
-
-                if (!string.IsNullOrEmpty(perspectiveName))
-                {
-                    AddTableToPerspective(model, table, perspectiveName, removeOrphanedPerspectiveColumns);
-                }
-
-                model.RequestRefresh(RefreshType.Full);
-                model.SaveChanges();
-            }
-            else
-            {
-                Console.WriteLine($"Table {tableName} exists. Checking for updates...");
-
-                var existingColumns = table.Columns.OfType<DataColumn>().ToDictionary(c => c.Name, c => c.DataType);
-
-                var columnsToAdd = columns.Keys.Except(existingColumns.Keys).ToList();
-                var columnsToRemove = existingColumns.Keys.Except(columns.Keys).ToList();
-                var columnsToUpdateType = existingColumns.Where(e => columns.ContainsKey(e.Key) && columns[e.Key] != e.Value)
-                                                          .Select(e => (ColumnName: e.Key, NewType: columns[e.Key]))
-                                                          .ToList();
-
-                if (!columnsToAdd.Any() && !columnsToRemove.Any() && !columnsToUpdateType.Any())
-                {
-                    Console.WriteLine("No changes required for the table schema.");
-                }
-                else
-                {
-                    Console.WriteLine($"Changes detected for table {tableName}:");
-                    if (columnsToAdd.Any()) Console.WriteLine($"Columns to add: {string.Join(", ", columnsToAdd)}");
-                    if (columnsToRemove.Any()) Console.WriteLine($"Columns to remove: {string.Join(", ", columnsToRemove)}");
-                    if (columnsToUpdateType.Any()) Console.WriteLine($"Columns to update type: {string.Join(", ", columnsToUpdateType.Select(c => c.ColumnName))}");
-
-                    try
-                    {
-                        foreach (var col in columnsToAdd)
-                        {
-                            table.Columns.Add(new DataColumn
-                            {
-                                Name = col,
-                                DataType = columns[col]
-                            });
-                        }
-
-                        foreach (var col in columnsToRemove)
-                        {
-                            var colToRemove = table.Columns.Find(col);
-                            if (colToRemove != null)
-                            {
-                                table.Columns.Remove(colToRemove);
-                            }
-                        }
-
-                        foreach (var (columnName, newType) in columnsToUpdateType)
-                        {
-                            var existingColumn = table.Columns.Find(columnName);
-                            if (existingColumn != null)
-                            {
-                                table.Columns.Remove(existingColumn);
-                            }
-                            table.Columns.Add(new DataColumn
-                            {
-                                Name = columnName,
-                                DataType = newType
-                            });
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Error applying schema updates: {ex.Message}");
-                        throw;
-                    }
-                }
-
-                if (!string.IsNullOrEmpty(perspectiveName))
-                {
-                    AddTableToPerspective(model, table, perspectiveName, removeOrphanedPerspectiveColumns);
-                }
-
-                model.RequestRefresh(RefreshType.Full);
-                model.SaveChanges();
-            }
+                Name = columnName,
+                Table = table
+            });
         }
     }
 
-    private void AddTableToPerspective(Model model, Table table, string perspectiveName, bool removeOrphanedPerspectiveColumns)
+    if (removeOrphanedPerspectiveColumns)
     {
-        var perspective = model.Perspectives.Find(perspectiveName);
-        if (perspective == null)
+        foreach (var orphan in existingPerspectiveColumns.Where(c => !tableColumns.Contains(c.Name)).ToList())
         {
-            Console.WriteLine($"Perspective {perspectiveName} does not exist. Creating new perspective.");
-            perspective = new Perspective { Name = perspectiveName };
-            model.Perspectives.Add(perspective);
-        }
-
-        var tableColumns = table.Columns.OfType<DataColumn>().Select(c => c.Name).ToHashSet();
-        var existingPerspectiveColumns = perspective.PerspectiveObjects
-                                                      .Where(po => po.ObjectType == ObjectType.Column && po.Table.Name == table.Name)
-                                                      .ToList();
-
-        foreach (var columnName in tableColumns)
-        {
-            if (!existingPerspectiveColumns.Any(po => po.Name == columnName))
-            {
-                perspective.PerspectiveObjects.Add(new PerspectiveColumn
-                {
-                    Name = columnName,
-                    Table = table
-                });
-            }
-        }
-
-        if (removeOrphanedPerspectiveColumns)
-        {
-            foreach (var orphan in existingPerspectiveColumns.Where(po => !tableColumns.Contains(po.Name)).ToList())
-            {
-                perspective.PerspectiveObjects.Remove(orphan);
-            }
+            perspective.Columns.Remove(orphan);
         }
     }
 }
-
-
 
 using Microsoft.Azure.Databricks.Client;
 using System;
