@@ -1,148 +1,192 @@
-using Microsoft.Azure.Databricks.Client;
-using Microsoft.Azure.Databricks.Client.Models;
+using Microsoft.AnalysisServices.Tabular;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-public class DeltaTableManager
+public class PowerBiTableManager
 {
-    private readonly IDatabricksClient _databricksClient;
-    private const int MaxRetryAttempts = 3;
-    private const int RetryDelayMilliseconds = 2000;
+    private readonly string _serverConnectionString;
 
-    public DeltaTableManager(IDatabricksClient databricksClient)
+    public PowerBiTableManager(string serverConnectionString)
     {
-        _databricksClient = databricksClient;
+        _serverConnectionString = serverConnectionString;
     }
 
     public async Task CreateOrUpdateTableAsync(
         string databaseName,
         string tableName,
-        Dictionary<string, string> columns
+        Dictionary<string, DataType> columns,
+        string perspectiveName = null,
+        bool updatePerspectiveOnly = false,
+        bool removeOrphanedPerspectiveColumns = false
     )
     {
-        string fullTableName = $"{databaseName}.{tableName}";
-
-        bool tableExists = await TableExistsAsync(databaseName, tableName);
-
-        if (!tableExists)
+        using (var server = new Server())
         {
-            string createSql = GenerateCreateTableSql(databaseName, tableName, columns);
-            await ExecuteSqlAsync(createSql);
-        }
-        else
-        {
-            var existingColumns = await GetTableColumnsAsync(databaseName, tableName);
+            server.Connect(_serverConnectionString);
+            var database = server.Databases.FindByName(databaseName);
 
-            var columnsToAdd = columns.Keys.Except(existingColumns.Keys).ToList();
-            var columnsToRemove = existingColumns.Keys.Except(columns.Keys).ToList();
-            var columnsToUpdateType = existingColumns.Where(e => columns.ContainsKey(e.Key) && columns[e.Key] != e.Value)
-                                                      .Select(e => (ColumnName: e.Key, NewType: columns[e.Key]))
-                                                      .ToList();
+            if (database == null)
+                throw new Exception($"Database {databaseName} not found.");
 
-            if (!columnsToAdd.Any() && !columnsToRemove.Any() && !columnsToUpdateType.Any())
+            if (database.Model.ModelMode != ModelModeType.Store)
+                throw new Exception("Model must be in ReadWrite mode to apply changes.");
+
+            var model = database.Model;
+            var table = model.Tables.Find(tableName);
+
+            if (updatePerspectiveOnly)
             {
-                Console.WriteLine("No changes required for the table schema.");
+                if (table == null)
+                    throw new Exception($"Table {tableName} not found for perspective update.");
+
+                if (!string.IsNullOrEmpty(perspectiveName))
+                {
+                    AddTableToPerspective(model, table, perspectiveName, removeOrphanedPerspectiveColumns);
+                    model.SaveChanges();
+                }
                 return;
             }
 
-            Console.WriteLine($"Changes detected for table {fullTableName}:");
-            if (columnsToAdd.Any()) Console.WriteLine($"Columns to add: {string.Join(", ", columnsToAdd)}");
-            if (columnsToRemove.Any()) Console.WriteLine($"Columns to remove: {string.Join(", ", columnsToRemove)}");
-            if (columnsToUpdateType.Any()) Console.WriteLine($"Columns to update type: {string.Join(", ", columnsToUpdateType.Select(c => c.ColumnName))}");
-
-            try
+            if (table == null)
             {
-                var commands = new List<string>();
+                Console.WriteLine($"Table {tableName} does not exist. Creating new table...");
 
-                foreach (var column in columnsToAdd)
+                table = new Table { Name = tableName };                
+                foreach (var column in columns)
                 {
-                    commands.Add($"ALTER TABLE {fullTableName} ADD COLUMNS ({column} {columns[column]})");
+                    table.Columns.Add(new DataColumn
+                    {
+                        Name = column.Key,
+                        DataType = column.Value
+                    });
                 }
 
-                foreach (var column in columnsToRemove)
+                table.Partitions.Add(new Partition
                 {
-                    commands.Add($"ALTER TABLE {fullTableName} DROP COLUMN {column}");
+                    Name = "InitialPartition",
+                    Source = new MPartitionSource { Expression = "let Source = #table({}, {}) in Source" }
+                });
+
+                model.Tables.Add(table);
+
+                if (!string.IsNullOrEmpty(perspectiveName))
+                {
+                    AddTableToPerspective(model, table, perspectiveName, removeOrphanedPerspectiveColumns);
                 }
 
-                foreach (var (columnName, newType) in columnsToUpdateType)
-                {
-                    string tempColumn = columnName + "_temp";
-
-                    commands.Add($"ALTER TABLE {fullTableName} ADD COLUMNS ({tempColumn} {newType})");
-                    commands.Add($"UPDATE {fullTableName} SET {tempColumn} = {columnName}");
-                    commands.Add($"ALTER TABLE {fullTableName} DROP COLUMN {columnName}");
-                    commands.Add($"ALTER TABLE {fullTableName} RENAME COLUMN {tempColumn} TO {columnName}");
-                }
-
-                foreach (var sql in commands)
-                {
-                    await ExecuteSqlAsync(sql);
-                }
+                model.RequestRefresh(RefreshType.Full);
+                model.SaveChanges();
             }
-            catch (Exception ex)
+            else
             {
-                Console.WriteLine($"Error occurred during schema update: {ex.Message}");
-                throw;
+                Console.WriteLine($"Table {tableName} exists. Checking for updates...");
+
+                var existingColumns = table.Columns.OfType<DataColumn>().ToDictionary(c => c.Name, c => c.DataType);
+
+                var columnsToAdd = columns.Keys.Except(existingColumns.Keys).ToList();
+                var columnsToRemove = existingColumns.Keys.Except(columns.Keys).ToList();
+                var columnsToUpdateType = existingColumns.Where(e => columns.ContainsKey(e.Key) && columns[e.Key] != e.Value)
+                                                          .Select(e => (ColumnName: e.Key, NewType: columns[e.Key]))
+                                                          .ToList();
+
+                if (!columnsToAdd.Any() && !columnsToRemove.Any() && !columnsToUpdateType.Any())
+                {
+                    Console.WriteLine("No changes required for the table schema.");
+                }
+                else
+                {
+                    Console.WriteLine($"Changes detected for table {tableName}:");
+                    if (columnsToAdd.Any()) Console.WriteLine($"Columns to add: {string.Join(", ", columnsToAdd)}");
+                    if (columnsToRemove.Any()) Console.WriteLine($"Columns to remove: {string.Join(", ", columnsToRemove)}");
+                    if (columnsToUpdateType.Any()) Console.WriteLine($"Columns to update type: {string.Join(", ", columnsToUpdateType.Select(c => c.ColumnName))}");
+
+                    try
+                    {
+                        foreach (var col in columnsToAdd)
+                        {
+                            table.Columns.Add(new DataColumn
+                            {
+                                Name = col,
+                                DataType = columns[col]
+                            });
+                        }
+
+                        foreach (var col in columnsToRemove)
+                        {
+                            var colToRemove = table.Columns.Find(col);
+                            if (colToRemove != null)
+                            {
+                                table.Columns.Remove(colToRemove);
+                            }
+                        }
+
+                        foreach (var (columnName, newType) in columnsToUpdateType)
+                        {
+                            var existingColumn = table.Columns.Find(columnName);
+                            if (existingColumn != null)
+                            {
+                                table.Columns.Remove(existingColumn);
+                            }
+                            table.Columns.Add(new DataColumn
+                            {
+                                Name = columnName,
+                                DataType = newType
+                            });
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error applying schema updates: {ex.Message}");
+                        throw;
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(perspectiveName))
+                {
+                    AddTableToPerspective(model, table, perspectiveName, removeOrphanedPerspectiveColumns);
+                }
+
+                model.RequestRefresh(RefreshType.Full);
+                model.SaveChanges();
             }
         }
     }
 
-    private async Task<bool> TableExistsAsync(string databaseName, string tableName)
+    private void AddTableToPerspective(Model model, Table table, string perspectiveName, bool removeOrphanedPerspectiveColumns)
     {
-        string sql = $"SHOW TABLES IN {databaseName} LIKE '{tableName}'";
-        var result = await ExecuteSqlAsync(sql);
-        return result.Contains(tableName, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private async Task<Dictionary<string, string>> GetTableColumnsAsync(string databaseName, string tableName)
-    {
-        string sql = $"DESCRIBE TABLE {databaseName}.{tableName}";
-        var result = await ExecuteSqlAsync(sql);
-
-        var columns = new Dictionary<string, string>();
-
-        foreach (var line in result.Split('\n'))
+        var perspective = model.Perspectives.Find(perspectiveName);
+        if (perspective == null)
         {
-            var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length >= 2)
-            {
-                columns[parts[0]] = parts[1];
-            }
+            Console.WriteLine($"Perspective {perspectiveName} does not exist. Creating new perspective.");
+            perspective = new Perspective { Name = perspectiveName };
+            model.Perspectives.Add(perspective);
         }
 
-        return columns;
-    }
+        var tableColumns = table.Columns.OfType<DataColumn>().Select(c => c.Name).ToHashSet();
+        var existingPerspectiveColumns = perspective.Columns
+                                                      .Where(c => c.Table.Name == table.Name)
+                                                      .ToList();
 
-    private string GenerateCreateTableSql(string databaseName, string tableName, Dictionary<string, string> columns)
-    {
-        string columnsSql = string.Join(", ", columns.Select(c => $"{c.Key} {c.Value}"));
-        return $"CREATE TABLE IF NOT EXISTS {databaseName}.{tableName} ({columnsSql}) USING DELTA";
-    }
-
-    private async Task<string> ExecuteSqlAsync(string sql)
-    {
-        for (int attempt = 1; attempt <= MaxRetryAttempts; attempt++)
+        foreach (var columnName in tableColumns)
         {
-            try
+            if (!existingPerspectiveColumns.Any(c => c.Name == columnName))
             {
-                var command = new Command
+                perspective.Columns.Add(new PerspectiveColumn
                 {
-                    Language = CommandLanguage.SQL,
-                    CommandText = sql
-                };
-
-                var result = await _databricksClient.Command.Execute(command);
-                return result?.Result ?? string.Empty;
-            }
-            catch (Exception ex) when (attempt < MaxRetryAttempts)
-            {
-                Console.WriteLine($"Attempt {attempt} failed: {ex.Message}. Retrying in {RetryDelayMilliseconds}ms...");
-                await Task.Delay(RetryDelayMilliseconds);
+                    Name = columnName,
+                    Table = table
+                });
             }
         }
 
-        throw new Exception($"Failed to execute SQL after {MaxRetryAttempts} attempts: {sql}");
+        if (removeOrphanedPerspectiveColumns)
+        {
+            foreach (var orphan in existingPerspectiveColumns.Where(c => !tableColumns.Contains(c.Name)).ToList())
+            {
+                perspective.Columns.Remove(orphan);
+            }
+        }
     }
 }
