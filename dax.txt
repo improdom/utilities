@@ -1,208 +1,100 @@
-using Microsoft.AnalysisServices.Tabular;
-using System;
-using System.Collections.Generic;
+using System.Data;
 using System.Linq;
-using System.Threading.Tasks;
+using System.Threading;
 
-public class PowerBiModelMappingService
+public async Task<DataTable> ExecuteSqlAsync(string sql, TokenCredentials credentials, CancellationToken cancellationToken = default)
 {
-    private readonly Server _server;
-    private readonly string _databaseName;
-    private Dictionary<string, TableMapping> _tableMappings;
-    private DateTime _lastLoadTime;
-    private readonly TimeSpan _refreshInterval = TimeSpan.FromHours(2);
-
-    public PowerBiModelMappingService(Server server, string databaseName)
+    try
     {
-        _server = server ?? throw new ArgumentNullException(nameof(server));
-        _databaseName = databaseName ?? throw new ArgumentNullException(nameof(databaseName));
+        var tokenClient = new TokenClient(credentials);
+        var token = await tokenClient.GetToken(httpClient);
+        using var client = DatabricksClient.CreateClient(DatabricksUrl, token.AccessToken);
 
-        LoadMappings();
-    }
-
-    private void LoadMappings()
-    {
-        _tableMappings = new Dictionary<string, TableMapping>();
-        var database = _server.Databases.FindByName(_databaseName);
-
-        if (database == null)
-            throw new Exception($"Database {_databaseName} not found on server.");
-
-        foreach (var table in database.Model.Tables)
+        var sqlStatement = new SQLStatement
         {
-            var mapping = new TableMapping { TableName = table.Name };
+            Statement = sql,
+            WarehouseId = "b25bd389b4ufc4e" // Make this configurable ideally
+        };
 
-            foreach (var column in table.Columns.OfType<DataColumn>())
+        var result = await client.SQL.StatementExecution.Execute(sqlStatement, cancellationToken);
+        var statementId = result.StatementId;
+
+        // Wait for query completion
+        while (result.Status.State == StatementExecutionState.PENDING || result.Status.State == StatementExecutionState.RUNNING)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await Task.Delay(500, cancellationToken);
+            result = await client.SQL.StatementExecution.GetStatus(statementId, cancellationToken);
+        }
+
+        if (result.Status.State != StatementExecutionState.SUCCEEDED)
+            throw new Exception($"SQL execution failed: {result.Status.State}");
+
+        var dataTable = new DataTable();
+        var chunkIndex = 0;
+        bool columnsInitialized = false;
+
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var chunk = await client.SQL.StatementExecution.GetResultChunk(statementId, chunkIndex, cancellationToken);
+
+            if (chunk.DataArray == null || !chunk.DataArray.Any())
+                break;
+
+            // Initialize DataTable columns from metadata once
+            if (!columnsInitialized && chunk.Manifest?.Schema?.Columns != null)
             {
-                if (!string.IsNullOrEmpty(column.SourceColumn))
+                foreach (var column in chunk.Manifest.Schema.Columns)
                 {
-                    var columnMap = new ColumnMapping
-                    {
-                        SourceName = column.SourceColumn,
-                        FriendlyName = column.Name,
-                        PowerBIDataType = column.DataType,
-                        SourceDataType = column.DataType // assume same unless known otherwise
-                    };
-
-                    mapping.ColumnsBySource[columnMap.SourceName] = columnMap;
-                    mapping.ColumnsByFriendly[columnMap.FriendlyName] = columnMap;
+                    dataTable.Columns.Add(column.Name, MapDatabricksTypeToClrType(column.Type));
                 }
+                columnsInitialized = true;
             }
 
-            _tableMappings[table.Name] = mapping;
-        }
-
-        _lastLoadTime = DateTime.UtcNow;
-        Console.WriteLine($"Mappings loaded successfully at {_lastLoadTime}.");
-    }
-
-    private void EnsureMappingsAreFresh()
-    {
-        if (DateTime.UtcNow - _lastLoadTime > _refreshInterval)
-        {
-            Console.WriteLine("Refreshing mappings due to timeout...");
-            LoadMappings();
-        }
-    }
-
-    public string GetFriendlyName(string tableName, string sourceColumnName)
-    {
-        try
-        {
-            EnsureMappingsAreFresh();
-
-            if (_tableMappings.TryGetValue(tableName, out var mapping) &&
-                mapping.ColumnsBySource.TryGetValue(sourceColumnName, out var column))
+            // Fill the DataTable
+            foreach (var row in chunk.DataArray)
             {
-                return column.FriendlyName;
-            }
-
-            return TryLiveFetchFriendlyName(tableName, sourceColumnName);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error retrieving friendly name: {ex.Message}");
-            return null;
-        }
-    }
-
-    public string GetSourceColumnName(string tableName, string friendlyColumnName)
-    {
-        try
-        {
-            EnsureMappingsAreFresh();
-
-            if (_tableMappings.TryGetValue(tableName, out var mapping) &&
-                mapping.ColumnsByFriendly.TryGetValue(friendlyColumnName, out var column))
-            {
-                return column.SourceName;
-            }
-
-            return null;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error retrieving source column name: {ex.Message}");
-            return null;
-        }
-    }
-
-    public (DataType? PowerBIType, DataType? SourceType)? GetColumnDataTypes(string tableName, string sourceColumnName)
-    {
-        try
-        {
-            EnsureMappingsAreFresh();
-
-            if (_tableMappings.TryGetValue(tableName, out var mapping) &&
-                mapping.ColumnsBySource.TryGetValue(sourceColumnName, out var column))
-            {
-                return (column.PowerBIDataType, column.SourceDataType);
-            }
-
-            return null;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error retrieving column data types: {ex.Message}");
-            return null;
-        }
-    }
-
-    private string TryLiveFetchFriendlyName(string tableName, string sourceColumnName)
-    {
-        try
-        {
-            var database = _server.Databases.FindByName(_databaseName);
-            var table = database?.Model.Tables.Find(tableName);
-
-            if (table == null) return null;
-
-            var column = table.Columns
-                .OfType<DataColumn>()
-                .FirstOrDefault(c => c.SourceColumn.Equals(sourceColumnName, StringComparison.OrdinalIgnoreCase));
-
-            if (column != null)
-            {
-                if (!_tableMappings.ContainsKey(tableName))
-                    _tableMappings[tableName] = new TableMapping { TableName = tableName };
-
-                var columnMap = new ColumnMapping
+                var dataRow = dataTable.NewRow();
+                for (int i = 0; i < row.Count; i++)
                 {
-                    SourceName = column.SourceColumn,
-                    FriendlyName = column.Name,
-                    PowerBIDataType = column.DataType,
-                    SourceDataType = column.DataType
-                };
-
-                _tableMappings[tableName].ColumnsBySource[columnMap.SourceName] = columnMap;
-                _tableMappings[tableName].ColumnsByFriendly[columnMap.FriendlyName] = columnMap;
-
-                return columnMap.FriendlyName;
+                    dataRow[i] = row[i] ?? DBNull.Value;
+                }
+                dataTable.Rows.Add(dataRow);
             }
 
-            return null;
+            chunkIndex++;
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Live fetch failed: {ex.Message}");
-            return null;
-        }
-    }
 
-    public Dictionary<string, string> GetAllMappingsForTable(string tableName)
-    {
-        try
-        {
-            EnsureMappingsAreFresh();
-            return _tableMappings.TryGetValue(tableName, out var mapping)
-                ? mapping.ColumnsBySource.ToDictionary(kv => kv.Key, kv => kv.Value.FriendlyName)
-                : null;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error retrieving mappings for table {tableName}: {ex.Message}");
-            return null;
-        }
+        return dataTable;
     }
-
-    public void ForceRefresh()
+    catch (OperationCanceledException)
     {
-        Console.WriteLine("Force refreshing mappings manually...");
-        LoadMappings();
+        Console.WriteLine("SQL Execution cancelled.");
+        throw;
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Exception executing SQL: {ex}");
+        throw;
     }
 }
-
-public class TableMapping
+private Type MapDatabricksTypeToClrType(string databricksType)
 {
-    public string TableName { get; set; }
-    public Dictionary<string, ColumnMapping> ColumnsBySource { get; } = new();
-    public Dictionary<string, ColumnMapping> ColumnsByFriendly { get; } = new();
-}
-
-public class ColumnMapping
-{
-    public string SourceName { get; set; }
-    public string FriendlyName { get; set; }
-    public DataType PowerBIDataType { get; set; }
-    public DataType SourceDataType { get; set; }
+    return databricksType.ToLowerInvariant() switch
+    {
+        "string" => typeof(string),
+        "boolean" => typeof(bool),
+        "byte" => typeof(byte),
+        "short" => typeof(short),
+        "integer" => typeof(int),
+        "long" => typeof(long),
+        "float" => typeof(float),
+        "double" => typeof(double),
+        "decimal" => typeof(decimal),
+        "date" => typeof(DateTime),
+        "timestamp" => typeof(DateTime),
+        _ => typeof(string) // Default fallback
+    };
 }
