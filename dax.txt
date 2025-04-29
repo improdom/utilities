@@ -8,10 +8,9 @@ public class DaxColumnInfo
 
 public static DaxColumnInfo ExtractTableAndColumn(string input)
 {
-    // Case 1: TableName[ColumnName]
-    var matchWithTable = Regex.Match(input, @"^(.*?)\[(.*)\]$");
-
-    if (matchWithTable.Success && matchWithTable.Groups.Count == 3)
+    // Case 1: TableName[ColumnName] — must have non-empty table name
+    var matchWithTable = Regex.Match(input, @"^(.+?)\[(.+)\]$");
+    if (matchWithTable.Success)
     {
         return new DaxColumnInfo
         {
@@ -20,9 +19,9 @@ public static DaxColumnInfo ExtractTableAndColumn(string input)
         };
     }
 
-    // Case 2: [ColumnName] only (measure)
-    var matchWithoutTable = Regex.Match(input, @"^\[(.*)\]$");
-    if (matchWithoutTable.Success && matchWithoutTable.Groups.Count == 2)
+    // Case 2: [ColumnName] — no table name, treat as measure
+    var matchWithoutTable = Regex.Match(input, @"^\[(.+)\]$");
+    if (matchWithoutTable.Success)
     {
         return new DaxColumnInfo
         {
@@ -31,6 +30,6 @@ public static DaxColumnInfo ExtractTableAndColumn(string input)
         };
     }
 
-    // Optional: return null or throw if invalid input
+    // Invalid format
     return null;
 }
