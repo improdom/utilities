@@ -1,121 +1,23 @@
-using Microsoft.AnalysisServices.AdomdClient;
-using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 
-public class DaxQueryExecutor
+public class DaxColumnInfo
 {
-    private readonly string _connectionString;
+    public string TableName { get; set; }
+    public string ColumnName { get; set; }
+}
 
-    public Action<string> Logger { get; set; } = Console.WriteLine;
+public static DaxColumnInfo ExtractTableAndColumn(string input)
+{
+    var match = Regex.Match(input, @"^(.*?)\[(.*)\]$");
 
-    public DaxQueryExecutor(string connectionString)
+    if (match.Success && match.Groups.Count == 3)
     {
-        _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+        return new DaxColumnInfo
+        {
+            TableName = match.Groups[1].Value.Trim(),
+            ColumnName = match.Groups[2].Value.Trim()
+        };
     }
 
-    public async Task<AdomdDataReader> ExecuteDaxQueryAsync(string daxQuery)
-    {
-        if (string.IsNullOrWhiteSpace(daxQuery))
-            throw new ArgumentException("DAX query must not be null or empty.", nameof(daxQuery));
-
-        var connection = new AdomdConnection(_connectionString);
-        await connection.OpenAsync();
-
-        try
-        {
-            using (var command = connection.CreateCommand())
-            {
-                Logger($"Executing DAX query: {daxQuery}");
-                command.CommandText = daxQuery;
-                command.CommandType = CommandType.Text;
-                return await Task.FromResult(command.ExecuteReader());
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger($"Error executing DAX query: {ex.Message}");
-            connection.Dispose();
-            throw;
-        }
-    }
-
-    public async Task<object> ExecuteScalarDaxQueryAsync(string daxQuery)
-    {
-        if (string.IsNullOrWhiteSpace(daxQuery))
-            throw new ArgumentException("DAX query must not be null or empty.", nameof(daxQuery));
-
-        var connection = new AdomdConnection(_connectionString);
-        await connection.OpenAsync();
-
-        try
-        {
-            using (var command = connection.CreateCommand())
-            {
-                Logger($"Executing scalar DAX query: {daxQuery}");
-                command.CommandText = daxQuery;
-                command.CommandType = CommandType.Text;
-                return await Task.FromResult(command.ExecuteScalar());
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger($"Error executing scalar DAX query: {ex.Message}");
-            connection.Dispose();
-            throw;
-        }
-    }
-
-    public async Task<Dictionary<string, DataTable>> ExecuteBatchDaxQueriesAsync(Dictionary<string, string> queries)
-    {
-        if (queries == null || queries.Count == 0)
-            throw new ArgumentException("Query batch must not be null or empty.", nameof(queries));
-
-        var results = new Dictionary<string, DataTable>();
-        var tasks = new List<Task>();
-        var lockObject = new object();
-
-        foreach (var kvp in queries)
-        {
-            tasks.Add(Task.Run(async () =>
-            {
-                using (var connection = new AdomdConnection(_connectionString))
-                {
-                    try
-                    {
-                        await connection.OpenAsync();
-                        using (var command = connection.CreateCommand())
-                        {
-                            Logger($"Executing batch DAX query: {kvp.Key}");
-                            command.CommandText = kvp.Value;
-                            command.CommandType = CommandType.Text;
-
-                            using (var reader = command.ExecuteReader())
-                            {
-                                var dataTable = new DataTable();
-                                dataTable.Load(reader);
-
-                                lock (lockObject)
-                                {
-                                    results[kvp.Key] = dataTable;
-                                }
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger($"Failed executing query '{kvp.Key}': {ex.Message}");
-                        lock (lockObject)
-                        {
-                            results[kvp.Key] = null;
-                        }
-                    }
-                }
-            }));
-        }
-
-        await Task.WhenAll(tasks);
-        return results;
-    }
+    return null; // or handle invalid format appropriately
 }
