@@ -8,16 +8,29 @@ public class DaxColumnInfo
 
 public static DaxColumnInfo ExtractTableAndColumn(string input)
 {
-    var match = Regex.Match(input, @"^(.*?)\[(.*)\]$");
+    // Case 1: TableName[ColumnName]
+    var matchWithTable = Regex.Match(input, @"^(.*?)\[(.*)\]$");
 
-    if (match.Success && match.Groups.Count == 3)
+    if (matchWithTable.Success && matchWithTable.Groups.Count == 3)
     {
         return new DaxColumnInfo
         {
-            TableName = match.Groups[1].Value.Trim(),
-            ColumnName = match.Groups[2].Value.Trim()
+            TableName = matchWithTable.Groups[1].Value.Trim(),
+            ColumnName = matchWithTable.Groups[2].Value.Trim()
         };
     }
 
-    return null; // or handle invalid format appropriately
+    // Case 2: [ColumnName] only (measure)
+    var matchWithoutTable = Regex.Match(input, @"^\[(.*)\]$");
+    if (matchWithoutTable.Success && matchWithoutTable.Groups.Count == 2)
+    {
+        return new DaxColumnInfo
+        {
+            TableName = "arisk_value",
+            ColumnName = matchWithoutTable.Groups[1].Value.Trim()
+        };
+    }
+
+    // Optional: return null or throw if invalid input
+    return null;
 }
