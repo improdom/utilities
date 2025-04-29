@@ -1,100 +1,107 @@
+using Microsoft.AnalysisServices.AdomdClient;
+using System;
+using System.Collections.Generic;
 using System.Data;
-using System.Linq;
-using System.Threading;
+using System.Threading.Tasks;
 
-public async Task<DataTable> ExecuteSqlAsync(string sql, TokenCredentials credentials, CancellationToken cancellationToken = default)
+public class DaxQueryExecutor
 {
-    try
+    private readonly string _connectionString;
+
+    public Action<string> Logger { get; set; } = Console.WriteLine;
+
+    public DaxQueryExecutor(string connectionString)
     {
-        var tokenClient = new TokenClient(credentials);
-        var token = await tokenClient.GetToken(httpClient);
-        using var client = DatabricksClient.CreateClient(DatabricksUrl, token.AccessToken);
+        _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+    }
 
-        var sqlStatement = new SQLStatement
+    public async Task<AdomdDataReader> ExecuteDaxQueryAsync(string daxQuery)
+    {
+        if (string.IsNullOrWhiteSpace(daxQuery))
+            throw new ArgumentException("DAX query must not be null or empty.", nameof(daxQuery));
+
+        var connection = new AdomdConnection(_connectionString);
+        await connection.OpenAsync();
+
+        try
         {
-            Statement = sql,
-            WarehouseId = "b25bd389b4ufc4e" // Make this configurable ideally
-        };
-
-        var result = await client.SQL.StatementExecution.Execute(sqlStatement, cancellationToken);
-        var statementId = result.StatementId;
-
-        // Wait for query completion
-        while (result.Status.State == StatementExecutionState.PENDING || result.Status.State == StatementExecutionState.RUNNING)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            await Task.Delay(500, cancellationToken);
-            result = await client.SQL.StatementExecution.GetStatus(statementId, cancellationToken);
-        }
-
-        if (result.Status.State != StatementExecutionState.SUCCEEDED)
-            throw new Exception($"SQL execution failed: {result.Status.State}");
-
-        var dataTable = new DataTable();
-        var chunkIndex = 0;
-        bool columnsInitialized = false;
-
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var chunk = await client.SQL.StatementExecution.GetResultChunk(statementId, chunkIndex, cancellationToken);
-
-            if (chunk.DataArray == null || !chunk.DataArray.Any())
-                break;
-
-            // Initialize DataTable columns from metadata once
-            if (!columnsInitialized && chunk.Manifest?.Schema?.Columns != null)
+            using (var command = connection.CreateCommand())
             {
-                foreach (var column in chunk.Manifest.Schema.Columns)
-                {
-                    dataTable.Columns.Add(column.Name, MapDatabricksTypeToClrType(column.Type));
-                }
-                columnsInitialized = true;
+                Logger($"Executing DAX query: {daxQuery}");
+                command.CommandText = daxQuery;
+                command.CommandType = CommandType.Text;
+                return await Task.FromResult(command.ExecuteReader());
             }
-
-            // Fill the DataTable
-            foreach (var row in chunk.DataArray)
-            {
-                var dataRow = dataTable.NewRow();
-                for (int i = 0; i < row.Count; i++)
-                {
-                    dataRow[i] = row[i] ?? DBNull.Value;
-                }
-                dataTable.Rows.Add(dataRow);
-            }
-
-            chunkIndex++;
         }
+        catch (Exception ex)
+        {
+            Logger($"Error executing DAX query: {ex.Message}");
+            connection.Dispose();
+            throw;
+        }
+    }
 
-        return dataTable;
-    }
-    catch (OperationCanceledException)
+    public async Task<object> ExecuteScalarDaxQueryAsync(string daxQuery)
     {
-        Console.WriteLine("SQL Execution cancelled.");
-        throw;
+        if (string.IsNullOrWhiteSpace(daxQuery))
+            throw new ArgumentException("DAX query must not be null or empty.", nameof(daxQuery));
+
+        var connection = new AdomdConnection(_connectionString);
+        await connection.OpenAsync();
+
+        try
+        {
+            using (var command = connection.CreateCommand())
+            {
+                Logger($"Executing scalar DAX query: {daxQuery}");
+                command.CommandText = daxQuery;
+                command.CommandType = CommandType.Text;
+                return await Task.FromResult(command.ExecuteScalar());
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger($"Error executing scalar DAX query: {ex.Message}");
+            connection.Dispose();
+            throw;
+        }
     }
-    catch (Exception ex)
+
+    public async Task<Dictionary<string, DataTable>> ExecuteBatchDaxQueriesAsync(Dictionary<string, string> queries)
     {
-        Console.WriteLine($"Exception executing SQL: {ex}");
-        throw;
+        if (queries == null || queries.Count == 0)
+            throw new ArgumentException("Query batch must not be null or empty.", nameof(queries));
+
+        var results = new Dictionary<string, DataTable>();
+        using (var connection = new AdomdConnection(_connectionString))
+        {
+            await connection.OpenAsync();
+
+            foreach (var kvp in queries)
+            {
+                try
+                {
+                    using (var command = connection.CreateCommand())
+                    {
+                        Logger($"Executing batch DAX query: {kvp.Key}");
+                        command.CommandText = kvp.Value;
+                        command.CommandType = CommandType.Text;
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            var dataTable = new DataTable();
+                            dataTable.Load(reader);
+                            results[kvp.Key] = dataTable;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger($"Failed executing query '{kvp.Key}': {ex.Message}");
+                    results[kvp.Key] = null;
+                }
+            }
+        }
+        return results;
     }
-}
-private Type MapDatabricksTypeToClrType(string databricksType)
-{
-    return databricksType.ToLowerInvariant() switch
-    {
-        "string" => typeof(string),
-        "boolean" => typeof(bool),
-        "byte" => typeof(byte),
-        "short" => typeof(short),
-        "integer" => typeof(int),
-        "long" => typeof(long),
-        "float" => typeof(float),
-        "double" => typeof(double),
-        "decimal" => typeof(decimal),
-        "date" => typeof(DateTime),
-        "timestamp" => typeof(DateTime),
-        _ => typeof(string) // Default fallback
-    };
 }
