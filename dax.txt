@@ -73,35 +73,49 @@ public class DaxQueryExecutor
             throw new ArgumentException("Query batch must not be null or empty.", nameof(queries));
 
         var results = new Dictionary<string, DataTable>();
-        using (var connection = new AdomdConnection(_connectionString))
+        var tasks = new List<Task>();
+        var lockObject = new object();
+
+        foreach (var kvp in queries)
         {
-            await connection.OpenAsync();
-
-            foreach (var kvp in queries)
+            tasks.Add(Task.Run(async () =>
             {
-                try
+                using (var connection = new AdomdConnection(_connectionString))
                 {
-                    using (var command = connection.CreateCommand())
+                    try
                     {
-                        Logger($"Executing batch DAX query: {kvp.Key}");
-                        command.CommandText = kvp.Value;
-                        command.CommandType = CommandType.Text;
-
-                        using (var reader = command.ExecuteReader())
+                        await connection.OpenAsync();
+                        using (var command = connection.CreateCommand())
                         {
-                            var dataTable = new DataTable();
-                            dataTable.Load(reader);
-                            results[kvp.Key] = dataTable;
+                            Logger($"Executing batch DAX query: {kvp.Key}");
+                            command.CommandText = kvp.Value;
+                            command.CommandType = CommandType.Text;
+
+                            using (var reader = command.ExecuteReader())
+                            {
+                                var dataTable = new DataTable();
+                                dataTable.Load(reader);
+
+                                lock (lockObject)
+                                {
+                                    results[kvp.Key] = dataTable;
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger($"Failed executing query '{kvp.Key}': {ex.Message}");
+                        lock (lockObject)
+                        {
+                            results[kvp.Key] = null;
                         }
                     }
                 }
-                catch (Exception ex)
-                {
-                    Logger($"Failed executing query '{kvp.Key}': {ex.Message}");
-                    results[kvp.Key] = null;
-                }
-            }
+            }));
         }
+
+        await Task.WhenAll(tasks);
         return results;
     }
 }
