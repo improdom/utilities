@@ -1,35 +1,110 @@
-using System.Text.RegularExpressions;
+using Microsoft.AnalysisServices.Tabular;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
-public class DaxColumnInfo
+public class PowerBiTableManager
 {
-    public string TableName { get; set; }
-    public string ColumnName { get; set; }
-}
+    private readonly string _serverConnectionString;
 
-public static DaxColumnInfo ExtractTableAndColumn(string input)
-{
-    // Case 1: TableName[ColumnName] — must have non-empty table name
-    var matchWithTable = Regex.Match(input, @"^(.+?)\[(.+)\]$");
-    if (matchWithTable.Success)
+    public Action<string> Logger { get; set; } = Console.WriteLine;
+
+    public PowerBiTableManager(string serverConnectionString)
     {
-        return new DaxColumnInfo
-        {
-            TableName = matchWithTable.Groups[1].Value.Trim(),
-            ColumnName = matchWithTable.Groups[2].Value.Trim()
-        };
+        _serverConnectionString = serverConnectionString;
     }
 
-    // Case 2: [ColumnName] — no table name, treat as measure
-    var matchWithoutTable = Regex.Match(input, @"^\[(.+)\]$");
-    if (matchWithoutTable.Success)
+    public async Task CreateOrUpdateTableAsync(string databaseName, string tableName, Dictionary<string, DataType> columns, string perspectiveName = null, bool includeAllColumnsInPerspective = false)
     {
-        return new DaxColumnInfo
+        using (var server = new Server())
         {
-            TableName = "arisk_value",
-            ColumnName = matchWithoutTable.Groups[1].Value.Trim()
-        };
+            server.Connect(_serverConnectionString);
+            var database = server.Databases.FindByName(databaseName) ?? throw new Exception($"Database {databaseName} not found.");
+            var model = database.Model;
+
+            var table = GetOrCreateTable(model, tableName);
+            AddMissingColumns(table, columns);
+
+            if (!string.IsNullOrWhiteSpace(perspectiveName))
+            {
+                AddColumnsToPerspective(model, table, columns, tableName, perspectiveName, includeAllColumnsInPerspective);
+            }
+
+            model.SaveChanges();
+            Logger?.Invoke($"Model changes saved successfully.");
+        }
     }
 
-    // Invalid format
-    return null;
+    private Table GetOrCreateTable(Model model, string tableName)
+    {
+        var table = model.Tables.FirstOrDefault(t => t.Name.Equals(tableName, StringComparison.OrdinalIgnoreCase));
+
+        if (table == null)
+        {
+            Logger?.Invoke($"Creating new table {tableName} in model...");
+            table = new Table
+            {
+                Name = tableName,
+                Partitions =
+                {
+                    new Partition
+                    {
+                        Name = "Partition",
+                        Source = new CalculatedPartitionSource { Expression = "SELECTCOLUMNS()" }
+                    }
+                }
+            };
+            model.Tables.Add(table);
+        }
+        else
+        {
+            Logger?.Invoke($"Table {tableName} already exists. Checking columns...");
+        }
+
+        return table;
+    }
+
+    private void AddMissingColumns(Table table, Dictionary<string, DataType> columns)
+    {
+        foreach (var columnEntry in columns)
+        {
+            if (!table.Columns.Any(c => c.Name.Equals(columnEntry.Key, StringComparison.OrdinalIgnoreCase)))
+            {
+                Logger?.Invoke($"Adding column {columnEntry.Key} ({columnEntry.Value}) to table {table.Name}...");
+                table.Columns.Add(new DataColumn { Name = columnEntry.Key, DataType = columnEntry.Value });
+            }
+        }
+    }
+
+    private void AddColumnsToPerspective(Model model, Table table, Dictionary<string, DataType> columns, string tableName, string perspectiveName, bool includeAllColumns)
+    {
+        var perspective = model.Perspectives.FirstOrDefault(p => p.Name.Equals(perspectiveName, StringComparison.OrdinalIgnoreCase));
+        if (perspective == null)
+        {
+            Logger?.Invoke($"Creating new perspective {perspectiveName}...");
+            perspective = new Perspective { Name = perspectiveName };
+            model.Perspectives.Add(perspective);
+        }
+
+        if (!perspective.PerspectiveTables.Any(pt => pt.Name == tableName))
+        {
+            perspective.PerspectiveTables.Add(new PerspectiveTable { Name = tableName });
+        }
+
+        var perspectiveTable = perspective.PerspectiveTables[tableName];
+
+        IEnumerable<Column> columnsToAdd = includeAllColumns
+            ? table.Columns
+            : columns.Select(c => table.Columns[c.Key]).Where(c => c != null);
+
+        foreach (var column in columnsToAdd)
+        {
+            if (!perspectiveTable.PerspectiveColumns.Any(pc => pc.Name == column.Name))
+            {
+                Logger?.Invoke($"Adding column {column.Name} to perspective {perspectiveName}...");
+                perspectiveTable.PerspectiveColumns.Add(new PerspectiveColumn { Name = column.Name });
+            }
+        }
+    }
 }
