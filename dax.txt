@@ -63,4 +63,17 @@ public static class BusinessDateHelper
         var date = new DateTime(year, month, 1);
         int count = 0;
 
-        while (date.Month
+        while (date.Month == month)
+        {
+            if (date.DayOfWeek == dayOfWeek)
+            {
+                count++;
+                if (count == occurrence)
+                    return date;
+            }
+            date = date.AddDays(1);
+        }
+
+        throw new ArgumentException("Invalid weekday occurrence.");
+    }
+}
