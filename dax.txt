@@ -1,79 +1,58 @@
 using System;
-using System.Linq;
+using System.Collections.Generic;
+using System.IO;
 using System.Text.RegularExpressions;
-using Microsoft.AnalysisServices.AdomdClient;
 
-namespace DaxParserLib
+class DaxInspector
 {
-    public class DaxQueryProcessor
+    static void Main(string[] args)
     {
-        private readonly string _connectionString;
+        string dax = File.ReadAllText("dax.txt"); // Put the DAX content in this file
 
-        public DaxQueryProcessor(string connectionString)
+        var filters = ExtractFilters(dax);
+        var outputColumns = ExtractSummarizeColumns(dax);
+
+        Console.WriteLine("=== Filters ===");
+        foreach (var f in filters)
         {
-            _connectionString = connectionString;
+            Console.WriteLine($"- {f}");
         }
 
-        // Step 1: Validate that the DAX query is syntactically correct and runnable
-        public bool Validate(string dax, out string error)
+        Console.WriteLine("\n=== Output Columns from SUMMARIZECOLUMNS ===");
+        foreach (var c in outputColumns)
         {
-            error = string.Empty;
-            try
+            Console.WriteLine($"- {c}");
+        }
+    }
+
+    static HashSet<string> ExtractFilters(string dax)
+    {
+        var filters = new HashSet<string>();
+        // Match 'Table'[Column] = "Value" or = 'Value' or = 123
+        var regex = new Regex(@"('?\w+'?\[\w+\])\s*=\s*(""[^""]+""|'[^']+'|\d+)", RegexOptions.IgnoreCase);
+        foreach (Match match in regex.Matches(dax))
+        {
+            filters.Add($"{match.Groups[1].Value} = {match.Groups[2].Value}");
+        }
+        return filters;
+    }
+
+    static HashSet<string> ExtractSummarizeColumns(string dax)
+    {
+        var outputCols = new HashSet<string>();
+        // Extract arguments inside SUMMARIZECOLUMNS(...)
+        var summarizeRegex = new Regex(@"SUMMARIZECOLUMNS\s*\((.*?)\)", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+        foreach (Match match in summarizeRegex.Matches(dax))
+        {
+            string args = match.Groups[1].Value;
+
+            // Extract each 'Table'[Column]
+            var columnRegex = new Regex(@"('?\w+'?\[\w+\])", RegexOptions.IgnoreCase);
+            foreach (Match col in columnRegex.Matches(args))
             {
-                using var conn = new AdomdConnection(_connectionString);
-                conn.Open();
-                var cmd = conn.CreateCommand();
-                cmd.CommandText = dax;
-                cmd.ExecuteReader().Close();
-                return true;
+                outputCols.Add(col.Value);
             }
-            catch (Exception ex)
-            {
-                error = ex.Message;
-                return false;
-            }
         }
-
-        // Step 2: Check if the DAX query already has a date filter
-        public bool HasDateFilter(string dax, string dateColumn)
-        {
-            string normalizedDateColumn = Regex.Escape(dateColumn.Replace("'", "").Trim());
-
-            string[] patterns = new[]
-            {
-                $@"\b{normalizedDateColumn}\b\s*=\s*DATE\s*\(",
-                $@"\b{normalizedDateColumn}\b\s*=\s*TODAY\s*\(",
-                $@"\b{normalizedDateColumn}\b\s*(=|<|>|<=|>=)\s*VAR\b",
-                $@"\b{normalizedDateColumn}\b\s+IN\s+\{{",
-                $@"\b{normalizedDateColumn}\b\s+IN\s+VALUES\(",
-                $@"\bDATESBETWEEN\s*\([^\)]*\b{normalizedDateColumn}\b",
-                $@"\bTOTALYTD\s*\([^\)]*\b{normalizedDateColumn}\b",
-                $@"\bKEEPFILTERS\s*\([^\)]*\b{normalizedDateColumn}\b",
-                $@"\bFILTER\s*\([^\)]*\b{normalizedDateColumn}\b",
-                $@"\bUSERELATIONSHIP\s*\([^\)]*\b{normalizedDateColumn}\b",
-                $@"\bTREATAS\s*\([^\)]*\b{normalizedDateColumn}\b"
-            };
-
-            return patterns.Any(p => Regex.IsMatch(dax, p, RegexOptions.IgnoreCase | RegexOptions.Singleline));
-        }
-
-        // Step 3: If no filter exists, wrap the query in a CALCULATETABLE with TREATAS
-        public string WrapWithTreatAs(string dax, string dateColumn, DateTime filterDate)
-        {
-            if (HasDateFilter(dax, dateColumn))
-                return dax;
-
-            string treatasClause = $"TREATAS({{ DATE({filterDate.Year},{filterDate.Month},{filterDate.Day}) }}, '{dateColumn}')";
-            string cleanedDax = dax.Trim();
-
-            // Remove EVALUATE prefix temporarily
-            if (cleanedDax.StartsWith("EVALUATE", StringComparison.OrdinalIgnoreCase))
-            {
-                cleanedDax = cleanedDax.Substring(8).Trim();
-            }
-
-            // Wrap with CALCULATETABLE and inject TREATAS
-            return $"EVALUATE CALCULATETABLE(({cleanedDax}), {treatasClause})";
-        }
+        return outputCols;
     }
 }
