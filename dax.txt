@@ -1,110 +1,79 @@
-using Microsoft.AnalysisServices.Tabular;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
+using System.Text.RegularExpressions;
+using Microsoft.AnalysisServices.AdomdClient;
 
-public class PowerBiTableManager
+namespace DaxParserLib
 {
-    private readonly string _serverConnectionString;
-
-    public Action<string> Logger { get; set; } = Console.WriteLine;
-
-    public PowerBiTableManager(string serverConnectionString)
+    public class DaxQueryProcessor
     {
-        _serverConnectionString = serverConnectionString;
-    }
+        private readonly string _connectionString;
 
-    public async Task CreateOrUpdateTableAsync(string databaseName, string tableName, Dictionary<string, DataType> columns, string perspectiveName = null, bool includeAllColumnsInPerspective = false)
-    {
-        using (var server = new Server())
+        public DaxQueryProcessor(string connectionString)
         {
-            server.Connect(_serverConnectionString);
-            var database = server.Databases.FindByName(databaseName) ?? throw new Exception($"Database {databaseName} not found.");
-            var model = database.Model;
-
-            var table = GetOrCreateTable(model, tableName);
-            AddMissingColumns(table, columns);
-
-            if (!string.IsNullOrWhiteSpace(perspectiveName))
-            {
-                AddColumnsToPerspective(model, table, columns, tableName, perspectiveName, includeAllColumnsInPerspective);
-            }
-
-            model.SaveChanges();
-            Logger?.Invoke($"Model changes saved successfully.");
+            _connectionString = connectionString;
         }
-    }
 
-    private Table GetOrCreateTable(Model model, string tableName)
-    {
-        var table = model.Tables.FirstOrDefault(t => t.Name.Equals(tableName, StringComparison.OrdinalIgnoreCase));
-
-        if (table == null)
+        // Step 1: Validate that the DAX query is syntactically correct and runnable
+        public bool Validate(string dax, out string error)
         {
-            Logger?.Invoke($"Creating new table {tableName} in model...");
-            table = new Table
+            error = string.Empty;
+            try
             {
-                Name = tableName,
-                Partitions =
-                {
-                    new Partition
-                    {
-                        Name = "Partition",
-                        Source = new CalculatedPartitionSource { Expression = "SELECTCOLUMNS()" }
-                    }
-                }
+                using var conn = new AdomdConnection(_connectionString);
+                conn.Open();
+                var cmd = conn.CreateCommand();
+                cmd.CommandText = dax;
+                cmd.ExecuteReader().Close();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
+        // Step 2: Check if the DAX query already has a date filter
+        public bool HasDateFilter(string dax, string dateColumn)
+        {
+            string normalizedDateColumn = Regex.Escape(dateColumn.Replace("'", "").Trim());
+
+            string[] patterns = new[]
+            {
+                $@"\b{normalizedDateColumn}\b\s*=\s*DATE\s*\(",
+                $@"\b{normalizedDateColumn}\b\s*=\s*TODAY\s*\(",
+                $@"\b{normalizedDateColumn}\b\s*(=|<|>|<=|>=)\s*VAR\b",
+                $@"\b{normalizedDateColumn}\b\s+IN\s+\{{",
+                $@"\b{normalizedDateColumn}\b\s+IN\s+VALUES\(",
+                $@"\bDATESBETWEEN\s*\([^\)]*\b{normalizedDateColumn}\b",
+                $@"\bTOTALYTD\s*\([^\)]*\b{normalizedDateColumn}\b",
+                $@"\bKEEPFILTERS\s*\([^\)]*\b{normalizedDateColumn}\b",
+                $@"\bFILTER\s*\([^\)]*\b{normalizedDateColumn}\b",
+                $@"\bUSERELATIONSHIP\s*\([^\)]*\b{normalizedDateColumn}\b",
+                $@"\bTREATAS\s*\([^\)]*\b{normalizedDateColumn}\b"
             };
-            model.Tables.Add(table);
-        }
-        else
-        {
-            Logger?.Invoke($"Table {tableName} already exists. Checking columns...");
+
+            return patterns.Any(p => Regex.IsMatch(dax, p, RegexOptions.IgnoreCase | RegexOptions.Singleline));
         }
 
-        return table;
-    }
-
-    private void AddMissingColumns(Table table, Dictionary<string, DataType> columns)
-    {
-        foreach (var columnEntry in columns)
+        // Step 3: If no filter exists, wrap the query in a CALCULATETABLE with TREATAS
+        public string WrapWithTreatAs(string dax, string dateColumn, DateTime filterDate)
         {
-            if (!table.Columns.Any(c => c.Name.Equals(columnEntry.Key, StringComparison.OrdinalIgnoreCase)))
+            if (HasDateFilter(dax, dateColumn))
+                return dax;
+
+            string treatasClause = $"TREATAS({{ DATE({filterDate.Year},{filterDate.Month},{filterDate.Day}) }}, '{dateColumn}')";
+            string cleanedDax = dax.Trim();
+
+            // Remove EVALUATE prefix temporarily
+            if (cleanedDax.StartsWith("EVALUATE", StringComparison.OrdinalIgnoreCase))
             {
-                Logger?.Invoke($"Adding column {columnEntry.Key} ({columnEntry.Value}) to table {table.Name}...");
-                table.Columns.Add(new DataColumn { Name = columnEntry.Key, DataType = columnEntry.Value });
+                cleanedDax = cleanedDax.Substring(8).Trim();
             }
-        }
-    }
 
-    private void AddColumnsToPerspective(Model model, Table table, Dictionary<string, DataType> columns, string tableName, string perspectiveName, bool includeAllColumns)
-    {
-        var perspective = model.Perspectives.FirstOrDefault(p => p.Name.Equals(perspectiveName, StringComparison.OrdinalIgnoreCase));
-        if (perspective == null)
-        {
-            Logger?.Invoke($"Creating new perspective {perspectiveName}...");
-            perspective = new Perspective { Name = perspectiveName };
-            model.Perspectives.Add(perspective);
-        }
-
-        if (!perspective.PerspectiveTables.Any(pt => pt.Name == tableName))
-        {
-            perspective.PerspectiveTables.Add(new PerspectiveTable { Name = tableName });
-        }
-
-        var perspectiveTable = perspective.PerspectiveTables[tableName];
-
-        IEnumerable<Column> columnsToAdd = includeAllColumns
-            ? table.Columns
-            : columns.Select(c => table.Columns[c.Key]).Where(c => c != null);
-
-        foreach (var column in columnsToAdd)
-        {
-            if (!perspectiveTable.PerspectiveColumns.Any(pc => pc.Name == column.Name))
-            {
-                Logger?.Invoke($"Adding column {column.Name} to perspective {perspectiveName}...");
-                perspectiveTable.PerspectiveColumns.Add(new PerspectiveColumn { Name = column.Name });
-            }
+            // Wrap with CALCULATETABLE and inject TREATAS
+            return $"EVALUATE CALCULATETABLE(({cleanedDax}), {treatasClause})";
         }
     }
 }
