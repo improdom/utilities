@@ -7,7 +7,7 @@ class DaxInspector
 {
     static void Main(string[] args)
     {
-        string dax = File.ReadAllText("dax.txt"); // Put the DAX content in this file
+        string dax = File.ReadAllText("dax.txt"); // DAX query goes here
 
         var filters = ExtractFilters(dax);
         var outputColumns = ExtractSummarizeColumns(dax);
@@ -28,31 +28,35 @@ class DaxInspector
     static HashSet<string> ExtractFilters(string dax)
     {
         var filters = new HashSet<string>();
-        // Match 'Table'[Column] = "Value" or = 'Value' or = 123
-        var regex = new Regex(@"('?\w+'?\[\w+\])\s*=\s*(""[^""]+""|'[^']+'|\d+)", RegexOptions.IgnoreCase);
-        foreach (Match match in regex.Matches(dax))
+
+        // Match 'Table Name'[Column] = "value" or 'value' or number
+        var filterRegex = new Regex(@"('[^']+'\[\w+\])\s*=\s*(""[^""]+""|'[^']+'|\d+)", RegexOptions.IgnoreCase);
+        foreach (Match match in filterRegex.Matches(dax))
         {
             filters.Add($"{match.Groups[1].Value} = {match.Groups[2].Value}");
         }
+
         return filters;
     }
 
     static HashSet<string> ExtractSummarizeColumns(string dax)
     {
         var outputCols = new HashSet<string>();
-        // Extract arguments inside SUMMARIZECOLUMNS(...)
+
+        // Match inside SUMMARIZECOLUMNS(...)
         var summarizeRegex = new Regex(@"SUMMARIZECOLUMNS\s*\((.*?)\)", RegexOptions.Singleline | RegexOptions.IgnoreCase);
         foreach (Match match in summarizeRegex.Matches(dax))
         {
             string args = match.Groups[1].Value;
 
-            // Extract each 'Table'[Column]
-            var columnRegex = new Regex(@"('?\w+'?\[\w+\])", RegexOptions.IgnoreCase);
+            // Match 'Table Name'[Column]
+            var columnRegex = new Regex(@"'[^']+'\[\w+\]", RegexOptions.IgnoreCase);
             foreach (Match col in columnRegex.Matches(args))
             {
                 outputCols.Add(col.Value);
             }
         }
+
         return outputCols;
     }
 }
