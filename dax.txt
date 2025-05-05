@@ -1,23 +1,27 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Text.RegularExpressions;
 
 public class DaxInspector
 {
-    public static (List<string> filters, List<string> outputColumns) AnalyzeDax(string dax)
+    public static (List<string> filters, List<string> outputColumns, List<string> measures) AnalyzeDax(string dax)
     {
         var filters = ExtractFilters(dax);
         var outputColumns = ExtractSummarizeColumns(dax);
-        return (new List<string>(filters), new List<string>(outputColumns));
+        var measures = ExtractMeasures(dax, outputColumns);
+
+        return (
+            new List<string>(filters),
+            new List<string>(outputColumns),
+            new List<string>(measures)
+        );
     }
 
     private static HashSet<string> ExtractFilters(string dax)
     {
         var filters = new HashSet<string>();
-
-        // Match 'Table Name'[Column Name] = "value" or 'value' or number
         var filterRegex = new Regex(@"('[^']+'\[[^\]]+\])\s*=\s*(""[^""]+""|'[^']+'|\d+)", RegexOptions.IgnoreCase);
+
         foreach (Match match in filterRegex.Matches(dax))
         {
             filters.Add($"{match.Groups[1].Value} = {match.Groups[2].Value}");
@@ -29,14 +33,12 @@ public class DaxInspector
     private static HashSet<string> ExtractSummarizeColumns(string dax)
     {
         var outputCols = new HashSet<string>();
-
-        // Extract content of SUMMARIZECOLUMNS(...)
         var summarizeRegex = new Regex(@"SUMMARIZECOLUMNS\s*\((.*?)\)", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+
         foreach (Match match in summarizeRegex.Matches(dax))
         {
             string args = match.Groups[1].Value;
 
-            // Match 'Table Name'[Column Name]
             var columnRegex = new Regex(@"'[^']+'\[[^\]]+\]", RegexOptions.IgnoreCase);
             foreach (Match col in columnRegex.Matches(args))
             {
@@ -45,5 +47,35 @@ public class DaxInspector
         }
 
         return outputCols;
+    }
+
+    private static HashSet<string> ExtractMeasures(string dax, HashSet<string> knownColumns)
+    {
+        var measures = new HashSet<string>();
+        var measureRegex = new Regex(@"\[([^\[\]]+)\]", RegexOptions.IgnoreCase); // Captures anything inside [ ]
+
+        foreach (Match match in measureRegex.Matches(dax))
+        {
+            string name = match.Groups[1].Value.Trim();
+            string full = $"[{name}]";
+
+            // Skip if it's part of a known table[column] (to avoid column misclassification)
+            bool isPartOfColumn = false;
+            foreach (var col in knownColumns)
+            {
+                if (col.EndsWith(full))
+                {
+                    isPartOfColumn = true;
+                    break;
+                }
+            }
+
+            if (!isPartOfColumn)
+            {
+                measures.Add(full);
+            }
+        }
+
+        return measures;
     }
 }
