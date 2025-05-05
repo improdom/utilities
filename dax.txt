@@ -1,15 +1,66 @@
-private static HashSet<string> ExtractMeasures(string dax)
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+public static class BusinessDateHelper
 {
-    var measures = new HashSet<string>();
-
-    // Match [Measure Name] not preceded by a single quote (i.e., not part of 'Table'[Column])
-    var measureRegex = new Regex(@"(?<!')\[\s*([^\[\]]+?)\s*\]", RegexOptions.IgnoreCase);
-
-    foreach (Match match in measureRegex.Matches(dax))
+    public static List<DateTime> GetLast50BusinessDates()
     {
-        string measureName = match.Groups[1].Value.Trim();
-        measures.Add($"[{measureName}]");
+        var holidays = GetUSHolidays(DateTime.Today.Year - 1, DateTime.Today.Year);
+        var businessDates = new List<DateTime>();
+
+        DateTime current = DateTime.Today;
+        while (businessDates.Count < 50)
+        {
+            if (IsBusinessDay(current, holidays))
+                businessDates.Add(current);
+
+            current = current.AddDays(-1);
+        }
+
+        return businessDates;
     }
 
-    return measures;
-}
+    private static bool IsBusinessDay(DateTime date, HashSet<DateTime> holidays)
+    {
+        return date.DayOfWeek != DayOfWeek.Saturday &&
+               date.DayOfWeek != DayOfWeek.Sunday &&
+               !holidays.Contains(date.Date);
+    }
+
+    private static HashSet<DateTime> GetUSHolidays(int year1, int year2)
+    {
+        var years = new[] { year1, year2 };
+        var holidays = new HashSet<DateTime>();
+
+        foreach (var year in years)
+        {
+            holidays.Add(new DateTime(year, 1, 1));                         // New Year's Day
+            holidays.Add(GetNthWeekdayOfMonth(year, 1, DayOfWeek.Monday, 3)); // Martin Luther King Jr. Day
+            holidays.Add(GetNthWeekdayOfMonth(year, 2, DayOfWeek.Monday, 3)); // Presidents' Day
+            holidays.Add(new DateTime(year, 5, 31).AddDays(-(int)new DateTime(year, 5, 31).DayOfWeek)); // Memorial Day (last Monday in May)
+            holidays.Add(new DateTime(year, 7, 4));                         // Independence Day
+            holidays.Add(GetNthWeekdayOfMonth(year, 9, DayOfWeek.Monday, 1)); // Labor Day
+            holidays.Add(GetNthWeekdayOfMonth(year, 10, DayOfWeek.Monday, 2)); // Columbus Day
+            holidays.Add(new DateTime(year, 11, 11));                       // Veterans Day
+            holidays.Add(GetNthWeekdayOfMonth(year, 11, DayOfWeek.Thursday, 4)); // Thanksgiving
+            holidays.Add(new DateTime(year, 12, 25));                       // Christmas
+
+            // Adjust for observed dates when holiday falls on weekend
+            holidays = holidays.Concat(holidays.Select(h =>
+            {
+                if (h.DayOfWeek == DayOfWeek.Saturday) return h.AddDays(-1);
+                if (h.DayOfWeek == DayOfWeek.Sunday) return h.AddDays(1);
+                return h;
+            })).ToHashSet();
+        }
+
+        return holidays;
+    }
+
+    private static DateTime GetNthWeekdayOfMonth(int year, int month, DayOfWeek dayOfWeek, int occurrence)
+    {
+        var date = new DateTime(year, month, 1);
+        int count = 0;
+
+        while (date.Month
