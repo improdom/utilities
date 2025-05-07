@@ -1,3 +1,48 @@
+
+public string WrapWithTreatAs(string dax, string dateColumn, DateTime filterDate)
+{
+    if (daxValidator.HasDateFilter(dax, dateColumn))
+        return dax;
+
+    var treatAsClause = $"KEEPFILTERS(TREATAS({{ DATE({filterDate.Year},{filterDate.Month},{filterDate.Day}) }}, '{dateColumn}'))";
+
+    var openParenIndex = dax.IndexOf("SUMMARIZECOLUMNS(", StringComparison.OrdinalIgnoreCase);
+    if (openParenIndex == -1)
+        return dax; // Not a valid structure
+
+    var startArgsIndex = openParenIndex + "SUMMARIZECOLUMNS(".Length;
+    var closeParenIndex = dax.LastIndexOf(")");
+
+    if (closeParenIndex == -1 || closeParenIndex <= startArgsIndex)
+        return dax;
+
+    var argsSegment = dax.Substring(startArgsIndex, closeParenIndex - startArgsIndex);
+    var args = argsSegment.Split(',').Select(a => a.Trim()).ToList();
+
+    // Find the first standalone measure (starts with [ and does NOT contain '] [' or '.' inside)
+    int insertIndex = args.FindIndex(arg =>
+        arg.StartsWith("[") &&
+        !arg.Contains("].[") &&  // ignore columns like 'Table'[Column]
+        !arg.Contains("'") &&    // ignore single-quoted table names
+        !arg.Contains(".")       // avoid fully qualified [Table].[Measure] if it exists
+    );
+
+    if (insertIndex == -1)
+        insertIndex = args.Count; // No measures found, inject at end
+
+    args.Insert(insertIndex, treatAsClause);
+
+    // Rebuild the DAX
+    var newArgs = string.Join(",\n    ", args); // use new lines for better formatting
+    var rebuiltDax = dax.Substring(0, startArgsIndex) + "\n    " + newArgs + "\n" + dax.Substring(closeParenIndex);
+
+    return rebuiltDax;
+}
+
+
+
+
+
 public string WrapWithTreatAs(string dax, string dateColumn, DateTime filterDate)
 {
     if (daxValidator.HasDateFilter(dax, dateColumn))
