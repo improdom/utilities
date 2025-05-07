@@ -1,3 +1,30 @@
+public string WrapWithTreatAs(string dax, string dateColumn, DateTime filterDate)
+{
+    if (daxValidator.HasDateFilter(dax, dateColumn))
+        return dax;
+
+    var treatAsClause = $"KEEPFILTERS(TREATAS({{ DATE({filterDate.Year},{filterDate.Month},{filterDate.Day}) }}, '{dateColumn}'))";
+
+    // Use regex to find first standalone measure (e.g., [Report Value])
+    var regex = new Regex(@"\[[^\]]+\]");
+    var match = regex.Match(dax);
+
+    if (match.Success)
+    {
+        // Inject the clause before the first measure
+        var index = match.Index;
+        return dax.Insert(index, treatAsClause + ", ");
+    }
+
+    // If no measure found, fall back to appending at the end (or keep original)
+    return dax;
+}
+
+
+
+
+
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
