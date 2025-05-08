@@ -1,151 +1,26 @@
-
-public string WrapWithTreatAs(string dax, string dateColumn, DateTime filterDate)
+public async Task RunWithThrottleAsync<T>(
+    IEnumerable<T> items,
+    int maxDegreeOfParallelism,
+    Func<T, Task> taskFactory)
 {
-    if (daxValidator.HasDateFilter(dax, dateColumn))
-        return dax;
+    var tasks = new List<Task>();
 
-    var treatAsClause = $"KEEPFILTERS(TREATAS({{ DATE({filterDate.Year},{filterDate.Month},{filterDate.Day}) }}, '{dateColumn}'))";
+    using var enumerator = items.GetEnumerator();
 
-    var openParenIndex = dax.IndexOf("SUMMARIZECOLUMNS(", StringComparison.OrdinalIgnoreCase);
-    if (openParenIndex == -1)
-        return dax; // Not a valid structure
-
-    var startArgsIndex = openParenIndex + "SUMMARIZECOLUMNS(".Length;
-    var closeParenIndex = dax.LastIndexOf(")");
-
-    if (closeParenIndex == -1 || closeParenIndex <= startArgsIndex)
-        return dax;
-
-    var argsSegment = dax.Substring(startArgsIndex, closeParenIndex - startArgsIndex);
-    var args = argsSegment.Split(',').Select(a => a.Trim()).ToList();
-
-    // Find the first standalone measure (starts with [ and does NOT contain '] [' or '.' inside)
-    int insertIndex = args.FindIndex(arg =>
-        arg.StartsWith("[") &&
-        !arg.Contains("].[") &&  // ignore columns like 'Table'[Column]
-        !arg.Contains("'") &&    // ignore single-quoted table names
-        !arg.Contains(".")       // avoid fully qualified [Table].[Measure] if it exists
-    );
-
-    if (insertIndex == -1)
-        insertIndex = args.Count; // No measures found, inject at end
-
-    args.Insert(insertIndex, treatAsClause);
-
-    // Rebuild the DAX
-    var newArgs = string.Join(",\n    ", args); // use new lines for better formatting
-    var rebuiltDax = dax.Substring(0, startArgsIndex) + "\n    " + newArgs + "\n" + dax.Substring(closeParenIndex);
-
-    return rebuiltDax;
-}
-
-
-
-
-
-public string WrapWithTreatAs(string dax, string dateColumn, DateTime filterDate)
-{
-    if (daxValidator.HasDateFilter(dax, dateColumn))
-        return dax;
-
-    var treatAsClause = $"KEEPFILTERS(TREATAS({{ DATE({filterDate.Year},{filterDate.Month},{filterDate.Day}) }}, '{dateColumn}'))";
-
-    // Use regex to find first standalone measure (e.g., [Report Value])
-    var regex = new Regex(@"\[[^\]]+\]");
-    var match = regex.Match(dax);
-
-    if (match.Success)
+    // Start initial batch
+    while (tasks.Count < maxDegreeOfParallelism && enumerator.MoveNext())
     {
-        // Inject the clause before the first measure
-        var index = match.Index;
-        return dax.Insert(index, treatAsClause + ", ");
+        tasks.Add(taskFactory(enumerator.Current));
     }
 
-    // If no measure found, fall back to appending at the end (or keep original)
-    return dax;
-}
-
-
-
-
-
-
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
-public static class BusinessDateHelper
-{
-    public static List<DateTime> GetLast50BusinessDates()
+    while (tasks.Count > 0)
     {
-        var holidays = GetUSHolidays(DateTime.Today.Year - 1, DateTime.Today.Year);
-        var businessDates = new List<DateTime>();
+        var completed = await Task.WhenAny(tasks);
+        tasks.Remove(completed);
 
-        DateTime current = DateTime.Today;
-        while (businessDates.Count < 50)
+        if (enumerator.MoveNext())
         {
-            if (IsBusinessDay(current, holidays))
-                businessDates.Add(current);
-
-            current = current.AddDays(-1);
+            tasks.Add(taskFactory(enumerator.Current));
         }
-
-        return businessDates;
-    }
-
-    private static bool IsBusinessDay(DateTime date, HashSet<DateTime> holidays)
-    {
-        return date.DayOfWeek != DayOfWeek.Saturday &&
-               date.DayOfWeek != DayOfWeek.Sunday &&
-               !holidays.Contains(date.Date);
-    }
-
-    private static HashSet<DateTime> GetUSHolidays(int year1, int year2)
-    {
-        var years = new[] { year1, year2 };
-        var holidays = new HashSet<DateTime>();
-
-        foreach (var year in years)
-        {
-            holidays.Add(new DateTime(year, 1, 1));                         // New Year's Day
-            holidays.Add(GetNthWeekdayOfMonth(year, 1, DayOfWeek.Monday, 3)); // Martin Luther King Jr. Day
-            holidays.Add(GetNthWeekdayOfMonth(year, 2, DayOfWeek.Monday, 3)); // Presidents' Day
-            holidays.Add(new DateTime(year, 5, 31).AddDays(-(int)new DateTime(year, 5, 31).DayOfWeek)); // Memorial Day (last Monday in May)
-            holidays.Add(new DateTime(year, 7, 4));                         // Independence Day
-            holidays.Add(GetNthWeekdayOfMonth(year, 9, DayOfWeek.Monday, 1)); // Labor Day
-            holidays.Add(GetNthWeekdayOfMonth(year, 10, DayOfWeek.Monday, 2)); // Columbus Day
-            holidays.Add(new DateTime(year, 11, 11));                       // Veterans Day
-            holidays.Add(GetNthWeekdayOfMonth(year, 11, DayOfWeek.Thursday, 4)); // Thanksgiving
-            holidays.Add(new DateTime(year, 12, 25));                       // Christmas
-
-            // Adjust for observed dates when holiday falls on weekend
-            holidays = holidays.Concat(holidays.Select(h =>
-            {
-                if (h.DayOfWeek == DayOfWeek.Saturday) return h.AddDays(-1);
-                if (h.DayOfWeek == DayOfWeek.Sunday) return h.AddDays(1);
-                return h;
-            })).ToHashSet();
-        }
-
-        return holidays;
-    }
-
-    private static DateTime GetNthWeekdayOfMonth(int year, int month, DayOfWeek dayOfWeek, int occurrence)
-    {
-        var date = new DateTime(year, month, 1);
-        int count = 0;
-
-        while (date.Month == month)
-        {
-            if (date.DayOfWeek == dayOfWeek)
-            {
-                count++;
-                if (count == occurrence)
-                    return date;
-            }
-            date = date.AddDays(1);
-        }
-
-        throw new ArgumentException("Invalid weekday occurrence.");
     }
 }
