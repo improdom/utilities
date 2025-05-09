@@ -1,26 +1,6 @@
-public async Task RunWithThrottleAsync<T>(
-    IEnumerable<T> items,
-    int maxDegreeOfParallelism,
-    Func<T, Task> taskFactory)
-{
-    var tasks = new List<Task>();
+Hi Satya,
 
-    using var enumerator = items.GetEnumerator();
+We're currently exploring different structures to present query results in Power BI. At present, we're creating a separate table in Power BI for each query (Option 1). This is straightforward and allows users to slice and dice by attributes from each individual table. However, as shown in the image below, the tab structure becomes cluttered and difficult to navigate. It would not scale well if we needed to add more queries in the future, even if we utilize perspectives.
 
-    // Start initial batch
-    while (tasks.Count < maxDegreeOfParallelism && enumerator.MoveNext())
-    {
-        tasks.Add(taskFactory(enumerator.Current));
-    }
+Venkat K. has suggested an alternative approach: merging all the query result columns into a single table, where each row is tagged with the query name (Option 2). This structure introduces a “Query Name” column that users can use to filter. It certainly results in a cleaner layout, but a potential drawback is that users would need to apply this filter across all visuals—adding a bit more effort compared to Option 1.
 
-    while (tasks.Count > 0)
-    {
-        var completed = await Task.WhenAny(tasks);
-        tasks.Remove(completed);
-
-        if (enumerator.MoveNext())
-        {
-            tasks.Add(taskFactory(enumerator.Current));
-        }
-    }
-}
