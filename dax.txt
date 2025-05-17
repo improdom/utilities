@@ -1,48 +1,85 @@
-public async Task CreateUpdateQuerySpace(QuerySpace querySpace)
+public class PowerBIHierarchyLoader
 {
-    var allColumns = querySpace.Queries
-        .SelectMany(q => ExtractColumnTypes(q))
-        .DistinctBy(kv => kv.Key)
-        .ToList();
+    private readonly string _connectionString;
 
-    var columnMap = allColumns.ToDictionary(
-        kv => kv.Key,
-        kv => kv.Value.GetValueOrDefault());
+    public PowerBIHierarchyLoader(string connectionString)
+    {
+        _connectionString = connectionString;
+    }
 
-    await _databricksDeltaService.CreateOrUpdateTableAsync(
-        databaseName: "hive_metastore.mr_arc_composite_gold_views",
-        tableName: "pbi_data_retention_point",
-        columns: columnMap);
+    public List<BusinessHierarchyRow> LoadHierarchy()
+    {
+        var result = new List<BusinessHierarchyRow>();
 
-    await _powerBiModelService.CreateOrUpdateTableAsync(
-        querySpace.Name,
-        allColumns.ToDictionary(kv => kv.Key, kv => kv.Value));
+        string daxQuery = @"
+EVALUATE
+SELECTCOLUMNS(
+    'BusinessHierarchy',
+    ""BusinessGroup"", 'BusinessHierarchy'[Business Group],
+    ""BusinessUnit"", 'BusinessHierarchy'[Business Unit],
+    ""BusinessArea"", 'BusinessHierarchy'[Business Area],
+    ""Sector"", 'BusinessHierarchy'[Sector],
+    ""Desk"", 'BusinessHierarchy'[Desk],
+    ""SubDesk"", 'BusinessHierarchy'[Sub Desk],
+    ""Book"", 'BusinessHierarchy'[Book]
+)";
+
+        using var connection = new AdomdConnection(_connectionString);
+        connection.Open();
+
+        using var command = new AdomdCommand(daxQuery, connection);
+        using var reader = command.ExecuteReader();
+
+        while (reader.Read())
+        {
+            var row = new BusinessHierarchyRow
+            {
+                BusinessGroup = reader["BusinessGroup"]?.ToString(),
+                BusinessUnit  = reader["BusinessUnit"]?.ToString(),
+                BusinessArea  = reader["BusinessArea"]?.ToString(),
+                Sector        = reader["Sector"]?.ToString(),
+                Desk          = reader["Desk"]?.ToString(),
+                SubDesk       = reader["SubDesk"]?.ToString(),
+                Book          = reader["Book"]?.ToString(),
+            };
+
+            result.Add(row);
+        }
+
+        return result;
+    }
 }
 
-private IEnumerable<KeyValuePair<string, (PowerBIType, SourceType)?>> ExtractColumnTypes(PowerBIQuery query)
+
+public class HierarchyResolverService
 {
-    var (filters, outputColumns, _) = DaxInspector.AnalyzeDax(query.DaxQuery);
-    var columnTypes = new Dictionary<string, (PowerBIType, SourceType)?>();
-    
-    foreach (var attribute in outputColumns)
+    private readonly List<BusinessHierarchyRow> _hierarchyRows;
+
+    public HierarchyResolverService(List<BusinessHierarchyRow> hierarchyRows)
     {
-        var parts = attribute.Split('.');
-        if (parts.Length < 2) continue;
-
-        string table = parts[0].Trim('[', ']');
-        string column = parts[^1].Trim('[', ']');
-        string colKey = $"{table}.{column}";
-
-        var columnType = _powerBiModelMappingService
-            .GetColumnDataTypes(table, column);
-
-        columnTypes.TryAdd(colKey, columnType);
+        _hierarchyRows = hierarchyRows ?? throw new ArgumentNullException(nameof(hierarchyRows));
     }
 
-    foreach (var measure in query.Measures.Select(m => m.Replace("[", "").Replace("]", "")))
+    public List<string> GetSubDesksForNode(string level, string value)
     {
-        columnTypes.TryAdd(measure, (PowerBIType.Double, SourceType.Double));
-    }
+        if (string.IsNullOrEmpty(level) || string.IsNullOrEmpty(value))
+            return new List<string>();
 
-    return columnTypes;
+        IEnumerable<BusinessHierarchyRow> filtered = level switch
+        {
+            "Business Group" => _hierarchyRows.Where(h => h.BusinessGroup == value),
+            "Business Unit"  => _hierarchyRows.Where(h => h.BusinessUnit == value),
+            "Business Area"  => _hierarchyRows.Where(h => h.BusinessArea == value),
+            "Sector"         => _hierarchyRows.Where(h => h.Sector == value),
+            "Desk"           => _hierarchyRows.Where(h => h.Desk == value),
+            "Sub-Desk"       => _hierarchyRows.Where(h => h.SubDesk == value),
+            _ => Enumerable.Empty<BusinessHierarchyRow>()
+        };
+
+        return filtered
+            .Select(h => h.SubDesk)
+            .Where(sd => !string.IsNullOrEmpty(sd))
+            .Distinct()
+            .ToList();
+    }
 }
