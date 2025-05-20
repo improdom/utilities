@@ -1,39 +1,30 @@
-CREATE TABLE query_readiness (
-    query_id UUID PRIMARY KEY,
-    query_name TEXT,
-    target_node_name TEXT,
-    target_node_level TEXT,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);
+private static HashSet<string> ExtractFilters(string dax)
+{
+    var filters = new HashSet<string>();
 
+    // Direct column = value filters
+    var directFilterRegex = new Regex(@"('[^']+'\[[^\]]+\])\s*=\s*(""[^""]+""|'[^']+'|\d+)", RegexOptions.IgnoreCase);
+    foreach (Match match in directFilterRegex.Matches(dax))
+    {
+        filters.Add($"{match.Groups[1].Value} = {match.Groups[2].Value}");
+    }
 
-CREATE TABLE readiness_status (
-    query_id UUID NOT NULL,
-    subdesk_name TEXT NOT NULL,
-    execution_date DATE NOT NULL,
-    is_ready BOOLEAN,
-    last_updated TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (query_id, subdesk_name, execution_date),
-    FOREIGN KEY (query_id) REFERENCES query_readiness(query_id) ON DELETE CASCADE
-);
+    // TREATAS/KEEPFILTERS filters: captures value list and column
+    var treatasRegex = new Regex(@"TREATAS\s*\(\s*\{([^\}]+)\},\s*('[^']+'\[[^\]]+\])\s*\)", RegexOptions.IgnoreCase);
+    foreach (Match match in treatasRegex.Matches(dax))
+    {
+        var values = match.Groups[1].Value
+            .Split(',')
+            .Select(v => v.Trim().Trim('"', '\''))
+            .Where(v => !string.IsNullOrWhiteSpace(v));
 
+        string column = match.Groups[2].Value;
 
-CREATE TABLE query_execution_status (
-    query_id UUID NOT NULL,
-    execution_date DATE NOT NULL,
-    status TEXT,
-    last_attempt TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    message TEXT,
-    PRIMARY KEY (query_id, execution_date),
-    FOREIGN KEY (query_id) REFERENCES query_readiness(query_id) ON DELETE CASCADE
-);
+        foreach (var value in values)
+        {
+            filters.Add($"{column} = \"{value}\"");
+        }
+    }
 
-
-CREATE TABLE query_execution_log (
-    execution_id UUID PRIMARY KEY,
-    query_id UUID NOT NULL,
-    execution_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    success BOOLEAN,
-    message TEXT,
-    FOREIGN KEY (query_id) REFERENCES query_readiness(query_id) ON DELETE CASCADE
-);
+    return filters;
+}
