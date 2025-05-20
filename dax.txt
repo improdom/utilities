@@ -1,30 +1,16 @@
-private static HashSet<string> ExtractFilters(string dax)
+public static (string Table, string Column, string Value)? DecomposeFilter(string filter)
 {
-    var filters = new HashSet<string>();
+    // Match: 'Table Name'[Column Name] = "Value" or 'Value' or number
+    var regex = new Regex(@"'([^']+)'\[([^\]]+)\]\s*=\s*(""[^""]+""|'[^']+'|\d+)", RegexOptions.IgnoreCase);
+    var match = regex.Match(filter);
 
-    // Direct column = value filters
-    var directFilterRegex = new Regex(@"('[^']+'\[[^\]]+\])\s*=\s*(""[^""]+""|'[^']+'|\d+)", RegexOptions.IgnoreCase);
-    foreach (Match match in directFilterRegex.Matches(dax))
+    if (match.Success)
     {
-        filters.Add($"{match.Groups[1].Value} = {match.Groups[2].Value}");
+        var table = match.Groups[1].Value.Trim();
+        var column = match.Groups[2].Value.Trim();
+        var value = match.Groups[3].Value.Trim('\"', '\'');
+        return (table, column, value);
     }
 
-    // TREATAS/KEEPFILTERS filters: captures value list and column
-    var treatasRegex = new Regex(@"TREATAS\s*\(\s*\{([^\}]+)\},\s*('[^']+'\[[^\]]+\])\s*\)", RegexOptions.IgnoreCase);
-    foreach (Match match in treatasRegex.Matches(dax))
-    {
-        var values = match.Groups[1].Value
-            .Split(',')
-            .Select(v => v.Trim().Trim('"', '\''))
-            .Where(v => !string.IsNullOrWhiteSpace(v));
-
-        string column = match.Groups[2].Value;
-
-        foreach (var value in values)
-        {
-            filters.Add($"{column} = \"{value}\"");
-        }
-    }
-
-    return filters;
+    return null;
 }
