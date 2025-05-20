@@ -8,47 +8,76 @@ public class RetentionDbContext : DbContext
     public DbSet<QueryReadiness> QueryReadinesses { get; set; }
     public DbSet<ReadinessStatus> ReadinessStatuses { get; set; }
     public DbSet<QueryExecutionStatus> QueryExecutionStatuses { get; set; }
+    public DbSet<QueryExecutionLog> QueryExecutionLogs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // QueryReadiness
-        modelBuilder.Entity<QueryReadiness>()
-            .HasKey(q => q.QueryId);
+        // Table: query_readiness
+        modelBuilder.Entity<QueryReadiness>(entity =>
+        {
+            entity.ToTable("query_readiness");
 
-        modelBuilder.Entity<QueryReadiness>()
-            .Property(q => q.CreatedAt)
-            .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasKey(q => q.QueryId);
+            entity.Property(q => q.QueryId).HasColumnName("query_id");
+            entity.Property(q => q.QueryName).HasColumnName("query_name");
+            entity.Property(q => q.TargetNodeName).HasColumnName("target_node_name");
+            entity.Property(q => q.TargetNodeLevel).HasColumnName("target_node_level");
+            entity.Property(q => q.CreatedAt).HasColumnName("created_at")
+                  .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-        modelBuilder.Entity<QueryReadiness>()
-            .HasMany(q => q.ReadinessStatuses)
-            .WithOne(r => r.Query)
-            .HasForeignKey(r => r.QueryId)
-            .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(q => q.ReadinessStatuses)
+                  .WithOne(r => r.Query)
+                  .HasForeignKey(r => r.QueryId)
+                  .OnDelete(DeleteBehavior.Cascade);
 
-        modelBuilder.Entity<QueryReadiness>()
-            .HasMany(q => q.ExecutionLogs)
-            .WithOne(e => e.Query)
-            .HasForeignKey(e => e.QueryId)
-            .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(q => q.ExecutionLogs)
+                  .WithOne(e => e.Query)
+                  .HasForeignKey(e => e.QueryId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
 
-        // ReadinessStatus
-        modelBuilder.Entity<ReadinessStatus>()
-            .HasKey(r => new { r.QueryId, r.SubDeskName, r.ExecutionDate });
+        // Table: readiness_status
+        modelBuilder.Entity<ReadinessStatus>(entity =>
+        {
+            entity.ToTable("readiness_status");
 
-        modelBuilder.Entity<ReadinessStatus>()
-            .Property(r => r.LastUpdated)
-            .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasKey(r => new { r.QueryId, r.SubDeskName, r.ExecutionDate });
 
-        // QueryExecutionStatus
-        modelBuilder.Entity<QueryExecutionStatus>()
-            .HasKey(e => new { e.QueryId, e.ExecutionDate });
+            entity.Property(r => r.QueryId).HasColumnName("query_id");
+            entity.Property(r => r.SubDeskName).HasColumnName("sub_desk_name");
+            entity.Property(r => r.ExecutionDate).HasColumnName("execution_date");
+            entity.Property(r => r.IsReady).HasColumnName("is_ready");
+            entity.Property(r => r.LastUpdated).HasColumnName("last_updated")
+                  .HasDefaultValueSql("CURRENT_TIMESTAMP");
+        });
 
-        modelBuilder.Entity<QueryExecutionStatus>()
-            .Property(e => e.Status)
-            .HasConversion<string>();
+        // Table: query_execution_status
+        modelBuilder.Entity<QueryExecutionStatus>(entity =>
+        {
+            entity.ToTable("query_execution_status");
 
-        modelBuilder.Entity<QueryExecutionStatus>()
-            .Property(e => e.LastAttempt)
-            .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasKey(e => new { e.QueryId, e.ExecutionDate });
+
+            entity.Property(e => e.QueryId).HasColumnName("query_id");
+            entity.Property(e => e.ExecutionDate).HasColumnName("execution_date");
+            entity.Property(e => e.Status).HasColumnName("status").HasConversion<string>();
+            entity.Property(e => e.LastAttempt).HasColumnName("last_attempt")
+                  .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.Message).HasColumnName("message");
+        });
+
+        // Table: query_execution_log
+        modelBuilder.Entity<QueryExecutionLog>(entity =>
+        {
+            entity.ToTable("query_execution_log");
+
+            entity.HasKey(e => e.ExecutionId);
+            entity.Property(e => e.ExecutionId).HasColumnName("execution_id");
+            entity.Property(e => e.QueryId).HasColumnName("query_id");
+            entity.Property(e => e.ExecutionTime).HasColumnName("execution_time")
+                  .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.Success).HasColumnName("success");
+            entity.Property(e => e.Message).HasColumnName("message");
+        });
     }
 }
