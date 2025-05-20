@@ -1,85 +1,54 @@
-public class PowerBIHierarchyLoader
+using Microsoft.EntityFrameworkCore;
+
+public class RetentionDbContext : DbContext
 {
-    private readonly string _connectionString;
+    public RetentionDbContext(DbContextOptions<RetentionDbContext> options)
+        : base(options) { }
 
-    public PowerBIHierarchyLoader(string connectionString)
+    public DbSet<QueryReadiness> QueryReadinesses { get; set; }
+    public DbSet<ReadinessStatus> ReadinessStatuses { get; set; }
+    public DbSet<QueryExecutionStatus> QueryExecutionStatuses { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        _connectionString = connectionString;
-    }
+        // QueryReadiness
+        modelBuilder.Entity<QueryReadiness>()
+            .HasKey(q => q.QueryId);
 
-    public List<BusinessHierarchyRow> LoadHierarchy()
-    {
-        var result = new List<BusinessHierarchyRow>();
+        modelBuilder.Entity<QueryReadiness>()
+            .Property(q => q.CreatedAt)
+            .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-        string daxQuery = @"
-EVALUATE
-SELECTCOLUMNS(
-    'BusinessHierarchy',
-    ""BusinessGroup"", 'BusinessHierarchy'[Business Group],
-    ""BusinessUnit"", 'BusinessHierarchy'[Business Unit],
-    ""BusinessArea"", 'BusinessHierarchy'[Business Area],
-    ""Sector"", 'BusinessHierarchy'[Sector],
-    ""Desk"", 'BusinessHierarchy'[Desk],
-    ""SubDesk"", 'BusinessHierarchy'[Sub Desk],
-    ""Book"", 'BusinessHierarchy'[Book]
-)";
+        modelBuilder.Entity<QueryReadiness>()
+            .HasMany(q => q.ReadinessStatuses)
+            .WithOne(r => r.Query)
+            .HasForeignKey(r => r.QueryId)
+            .OnDelete(DeleteBehavior.Cascade);
 
-        using var connection = new AdomdConnection(_connectionString);
-        connection.Open();
+        modelBuilder.Entity<QueryReadiness>()
+            .HasMany(q => q.ExecutionLogs)
+            .WithOne(e => e.Query)
+            .HasForeignKey(e => e.QueryId)
+            .OnDelete(DeleteBehavior.Cascade);
 
-        using var command = new AdomdCommand(daxQuery, connection);
-        using var reader = command.ExecuteReader();
+        // ReadinessStatus
+        modelBuilder.Entity<ReadinessStatus>()
+            .HasKey(r => new { r.QueryId, r.SubDeskName, r.ExecutionDate });
 
-        while (reader.Read())
-        {
-            var row = new BusinessHierarchyRow
-            {
-                BusinessGroup = reader["BusinessGroup"]?.ToString(),
-                BusinessUnit  = reader["BusinessUnit"]?.ToString(),
-                BusinessArea  = reader["BusinessArea"]?.ToString(),
-                Sector        = reader["Sector"]?.ToString(),
-                Desk          = reader["Desk"]?.ToString(),
-                SubDesk       = reader["SubDesk"]?.ToString(),
-                Book          = reader["Book"]?.ToString(),
-            };
+        modelBuilder.Entity<ReadinessStatus>()
+            .Property(r => r.LastUpdated)
+            .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-            result.Add(row);
-        }
+        // QueryExecutionStatus
+        modelBuilder.Entity<QueryExecutionStatus>()
+            .HasKey(e => new { e.QueryId, e.ExecutionDate });
 
-        return result;
-    }
-}
+        modelBuilder.Entity<QueryExecutionStatus>()
+            .Property(e => e.Status)
+            .HasConversion<string>();
 
-
-public class HierarchyResolverService
-{
-    private readonly List<BusinessHierarchyRow> _hierarchyRows;
-
-    public HierarchyResolverService(List<BusinessHierarchyRow> hierarchyRows)
-    {
-        _hierarchyRows = hierarchyRows ?? throw new ArgumentNullException(nameof(hierarchyRows));
-    }
-
-    public List<string> GetSubDesksForNode(string level, string value)
-    {
-        if (string.IsNullOrEmpty(level) || string.IsNullOrEmpty(value))
-            return new List<string>();
-
-        IEnumerable<BusinessHierarchyRow> filtered = level switch
-        {
-            "Business Group" => _hierarchyRows.Where(h => h.BusinessGroup == value),
-            "Business Unit"  => _hierarchyRows.Where(h => h.BusinessUnit == value),
-            "Business Area"  => _hierarchyRows.Where(h => h.BusinessArea == value),
-            "Sector"         => _hierarchyRows.Where(h => h.Sector == value),
-            "Desk"           => _hierarchyRows.Where(h => h.Desk == value),
-            "Sub-Desk"       => _hierarchyRows.Where(h => h.SubDesk == value),
-            _ => Enumerable.Empty<BusinessHierarchyRow>()
-        };
-
-        return filtered
-            .Select(h => h.SubDesk)
-            .Where(sd => !string.IsNullOrEmpty(sd))
-            .Distinct()
-            .ToList();
+        modelBuilder.Entity<QueryExecutionStatus>()
+            .Property(e => e.LastAttempt)
+            .HasDefaultValueSql("CURRENT_TIMESTAMP");
     }
 }
