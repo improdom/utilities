@@ -1,83 +1,39 @@
-using Microsoft.EntityFrameworkCore;
+CREATE TABLE query_readiness (
+    query_id UUID PRIMARY KEY,
+    query_name TEXT,
+    target_node_name TEXT,
+    target_node_level TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
 
-public class RetentionDbContext : DbContext
-{
-    public RetentionDbContext(DbContextOptions<RetentionDbContext> options)
-        : base(options) { }
 
-    public DbSet<QueryReadiness> QueryReadinesses { get; set; }
-    public DbSet<ReadinessStatus> ReadinessStatuses { get; set; }
-    public DbSet<QueryExecutionStatus> QueryExecutionStatuses { get; set; }
-    public DbSet<QueryExecutionLog> QueryExecutionLogs { get; set; }
+CREATE TABLE readiness_status (
+    query_id UUID NOT NULL,
+    subdesk_name TEXT NOT NULL,
+    execution_date DATE NOT NULL,
+    is_ready BOOLEAN,
+    last_updated TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (query_id, subdesk_name, execution_date),
+    FOREIGN KEY (query_id) REFERENCES query_readiness(query_id) ON DELETE CASCADE
+);
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        // Table: query_readiness
-        modelBuilder.Entity<QueryReadiness>(entity =>
-        {
-            entity.ToTable("query_readiness");
 
-            entity.HasKey(q => q.QueryId);
-            entity.Property(q => q.QueryId).HasColumnName("query_id");
-            entity.Property(q => q.QueryName).HasColumnName("query_name");
-            entity.Property(q => q.TargetNodeName).HasColumnName("target_node_name");
-            entity.Property(q => q.TargetNodeLevel).HasColumnName("target_node_level");
-            entity.Property(q => q.CreatedAt).HasColumnName("created_at")
-                  .HasDefaultValueSql("CURRENT_TIMESTAMP");
+CREATE TABLE query_execution_status (
+    query_id UUID NOT NULL,
+    execution_date DATE NOT NULL,
+    status TEXT,
+    last_attempt TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    message TEXT,
+    PRIMARY KEY (query_id, execution_date),
+    FOREIGN KEY (query_id) REFERENCES query_readiness(query_id) ON DELETE CASCADE
+);
 
-            entity.HasMany(q => q.ReadinessStatuses)
-                  .WithOne(r => r.Query)
-                  .HasForeignKey(r => r.QueryId)
-                  .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasMany(q => q.ExecutionLogs)
-                  .WithOne(e => e.Query)
-                  .HasForeignKey(e => e.QueryId)
-                  .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // Table: readiness_status
-        modelBuilder.Entity<ReadinessStatus>(entity =>
-        {
-            entity.ToTable("readiness_status");
-
-            entity.HasKey(r => new { r.QueryId, r.SubDeskName, r.ExecutionDate });
-
-            entity.Property(r => r.QueryId).HasColumnName("query_id");
-            entity.Property(r => r.SubDeskName).HasColumnName("sub_desk_name");
-            entity.Property(r => r.ExecutionDate).HasColumnName("execution_date");
-            entity.Property(r => r.IsReady).HasColumnName("is_ready");
-            entity.Property(r => r.LastUpdated).HasColumnName("last_updated")
-                  .HasDefaultValueSql("CURRENT_TIMESTAMP");
-        });
-
-        // Table: query_execution_status
-        modelBuilder.Entity<QueryExecutionStatus>(entity =>
-        {
-            entity.ToTable("query_execution_status");
-
-            entity.HasKey(e => new { e.QueryId, e.ExecutionDate });
-
-            entity.Property(e => e.QueryId).HasColumnName("query_id");
-            entity.Property(e => e.ExecutionDate).HasColumnName("execution_date");
-            entity.Property(e => e.Status).HasColumnName("status").HasConversion<string>();
-            entity.Property(e => e.LastAttempt).HasColumnName("last_attempt")
-                  .HasDefaultValueSql("CURRENT_TIMESTAMP");
-            entity.Property(e => e.Message).HasColumnName("message");
-        });
-
-        // Table: query_execution_log
-        modelBuilder.Entity<QueryExecutionLog>(entity =>
-        {
-            entity.ToTable("query_execution_log");
-
-            entity.HasKey(e => e.ExecutionId);
-            entity.Property(e => e.ExecutionId).HasColumnName("execution_id");
-            entity.Property(e => e.QueryId).HasColumnName("query_id");
-            entity.Property(e => e.ExecutionTime).HasColumnName("execution_time")
-                  .HasDefaultValueSql("CURRENT_TIMESTAMP");
-            entity.Property(e => e.Success).HasColumnName("success");
-            entity.Property(e => e.Message).HasColumnName("message");
-        });
-    }
-}
+CREATE TABLE query_execution_log (
+    execution_id UUID PRIMARY KEY,
+    query_id UUID NOT NULL,
+    execution_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    success BOOLEAN,
+    message TEXT,
+    FOREIGN KEY (query_id) REFERENCES query_readiness(query_id) ON DELETE CASCADE
+);
