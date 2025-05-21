@@ -1,16 +1,17 @@
-public static (string Table, string Column, string Value)? DecomposeFilter(string filter)
-{
-    // Match: 'Table Name'[Column Name] = "Value" or 'Value' or number
-    var regex = new Regex(@"'([^']+)'\[([^\]]+)\]\s*=\s*(""[^""]+""|'[^']+'|\d+)", RegexOptions.IgnoreCase);
-    var match = regex.Match(filter);
-
-    if (match.Success)
-    {
-        var table = match.Groups[1].Value.Trim();
-        var column = match.Groups[2].Value.Trim();
-        var value = match.Groups[3].Value.Trim('\"', '\'');
-        return (table, column, value);
-    }
-
-    return null;
-}
+SELECT
+    qr.query_id,
+    qr.query_name,
+    rs.cob_date,
+    CASE
+        WHEN qes.status IS NULL THEN 'Pending'
+        ELSE qes.status
+    END AS status,
+    COUNT(*) FILTER (WHERE rs.is_ready) AS ready_count,
+    COUNT(*) FILTER (WHERE NOT rs.is_ready OR rs.is_ready IS NULL) AS pending_count,
+    COUNT(*) AS total_sub_desks
+FROM mr_agg_model_refresh.pbi_query_readiness qr
+LEFT JOIN mr_agg_model_refresh.pbi_query_readiness_status rs
+    ON qr.query_id = rs.query_id
+LEFT JOIN mr_agg_model_refresh.pbi_query_execution_status qes
+    ON qr.query_id = qes.query_id AND rs.cob_date = qes.cob_date
+GROUP BY qr.query_id, qr.query_name, rs.cob_date, qes.status;
