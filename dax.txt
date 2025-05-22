@@ -1,17 +1,12 @@
-public class NodeEventDto
+public static class ConcurrentQueueExtensions
 {
-    public string HierarchyLevel { get; set; }
-    public string NodeEventName { get; set; }
-    public string BusinessHierarchyNodeId { get; set; }
-    public string BusinessHierarchyNodeName { get; set; }
-    public string NodeTriggerStatus { get; set; }
-    public DateTime BusinessDate { get; set; }
-    public string EventName { get; set; }
-    public DateTime SourceEventTs { get; set; }
-    public string SourceSystemId { get; set; }
-    public string SourceSystemName { get; set; }
-    public string Region { get; set; }
-    public string CalcCategory { get; set; }
-    public string ResultType { get; set; }
-    public string TriggerStatus { get; set; }
+    public static List<T> DequeueAll<T>(this ConcurrentQueue<T> queue)
+    {
+        var items = new List<T>();
+        while (queue.TryDequeue(out var item))
+        {
+            items.Add(item);
+        }
+        return items;
+    }
 }
