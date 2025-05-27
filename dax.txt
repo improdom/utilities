@@ -1,12 +1,35 @@
-public static class ConcurrentQueueExtensions
-{
-    public static List<T> DequeueAll<T>(this ConcurrentQueue<T> queue)
-    {
-        var items = new List<T>();
-        while (queue.TryDequeue(out var item))
-        {
-            items.Add(item);
-        }
-        return items;
-    }
-}
+Hi Venkat,
+
+As discussed today, for the strategic model, I have ported the MRVs from the PPRD environment and re-mapped the columns accordingly. However, some of the calculations are still failing because the column 'Scenario'[scenario_name_upper] is missing.
+
+Also, as mentioned during our call, we should maintain the same folder structure for dimensions as in the cube. This not only aligns with the structure provided by the business but also enhances the user experience by avoiding large, hard-to-navigate field lists.
+
+Please see below the current folder layout under the "Desk" folder:
+
+Book Attributes
+
+Book Levels
+
+Business Hierarchy
+
+FRTB Hierarchy
+
+LSDB
+
+More Fields
+
+Let me know if you have any questions or suggestions.
+
+Thanks,
+Julio Díaz
+
+Let me know if you'd like a more concise version or if you're replying with any follow-up action.
+
+
+
+
+
+
+
+
+
