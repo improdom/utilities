@@ -1,59 +1,62 @@
 using System;
 using System.Text.Json.Serialization;
 
-public class ReadinessEventMessage
+public class ReadinessResponseDto
 {
-    [JsonPropertyName("eventType")]
-    public string EventType { get; set; }
-
-    [JsonPropertyName("sourceSystem")]
+    public string ProcessEventLogId { get; set; }
+    public string BusinessDate { get; set; }
+    public string EventName { get; set; }
+    public string SourceEnvironment { get; set; }
+    public string SourceEventTs { get; set; } // Consider using DateTime?
+    public string DatasetName { get; set; }
     public string SourceSystem { get; set; }
 
-    [JsonPropertyName("subDesk")]
-    public string SubDesk { get; set; }
+    // Commented out in original Java
+    // public string DataContext { get; set; }
+    // public string RdmBusinessArea { get; set; }
 
-    [JsonPropertyName("datasetName")]
-    public string DatasetName { get; set; }
+    public string RiskSystemType { get; set; }
+    public int RunVersion { get; set; }
+    public string BusinessLevel { get; set; }
+    public int BusinessViewModel { get; set; }
+    public string BusinessViewModelName { get; set; }
+    public string RunContext { get; set; }
+    public string EventMessage { get; set; }
 
-    [JsonPropertyName("workspaceName")]
-    public string WorkspaceName { get; set; }
+    [JsonPropertyName("updateTime")]
+    [JsonConverter(typeof(JsonDateTimeConverter))] // You'll need to implement this
+    public DateTime UpdateTime { get; set; }
 
-    [JsonPropertyName("tenantId")]
-    public string TenantId { get; set; }
+    public string CalcCategory { get; set; }
+    public string ResultType { get; set; }
+    public string Region { get; set; }
+    public string DataCategory { get; set; }
+    public string DataSubCategory { get; set; }
 
-    [JsonPropertyName("clientId")]
-    public string ClientId { get; set; }
+    [JsonIgnore]
+    public string ResourceWeightage { get; set; }
 
-    [JsonPropertyName("secretStore")]
-    public string SecretStore { get; set; }
+    [JsonIgnore]
+    public string EventId { get; set; }
+}
 
-    [JsonPropertyName("cobDate")]
-    public string CobDate { get; set; }
 
-    [JsonPropertyName("isRetry")]
-    public bool IsRetry { get; set; }
+using System;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Globalization;
 
-    [JsonPropertyName("dbxInstance")]
-    public string DbxInstance { get; set; }
+public class JsonDateTimeConverter : JsonConverter<DateTime>
+{
+    private const string Format = "yyyy-MM-dd'T'HH:mm:ss.fff'Z'";
 
-    [JsonPropertyName("dbxPath")]
-    public string DbxPath { get; set; }
+    public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        return DateTime.ParseExact(reader.GetString(), Format, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal);
+    }
 
-    [JsonPropertyName("dbxDatabase")]
-    public string DbxDatabase { get; set; }
-
-    [JsonPropertyName("modelName")]
-    public string ModelName { get; set; }
-
-    [JsonPropertyName("readinessCategory")]
-    public string ReadinessCategory { get; set; }
-
-    [JsonPropertyName("readinessSubCategory")]
-    public string ReadinessSubCategory { get; set; }
-
-    [JsonPropertyName("readinessComponent")]
-    public string ReadinessComponent { get; set; }
-
-    [JsonPropertyName("readinessStatus")]
-    public string ReadinessStatus { get; set; }
+    public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options)
+    {
+        writer.WriteStringValue(value.ToUniversalTime().ToString(Format));
+    }
 }
