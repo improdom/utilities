@@ -1,35 +1,59 @@
-Hi Venkat,
+using System;
+using System.Text.Json.Serialization;
 
-As discussed today, for the strategic model, I have ported the MRVs from the PPRD environment and re-mapped the columns accordingly. However, some of the calculations are still failing because the column 'Scenario'[scenario_name_upper] is missing.
+public class ReadinessEventMessage
+{
+    [JsonPropertyName("eventType")]
+    public string EventType { get; set; }
 
-Also, as mentioned during our call, we should maintain the same folder structure for dimensions as in the cube. This not only aligns with the structure provided by the business but also enhances the user experience by avoiding large, hard-to-navigate field lists.
+    [JsonPropertyName("sourceSystem")]
+    public string SourceSystem { get; set; }
 
-Please see below the current folder layout under the "Desk" folder:
+    [JsonPropertyName("subDesk")]
+    public string SubDesk { get; set; }
 
-Book Attributes
+    [JsonPropertyName("datasetName")]
+    public string DatasetName { get; set; }
 
-Book Levels
+    [JsonPropertyName("workspaceName")]
+    public string WorkspaceName { get; set; }
 
-Business Hierarchy
+    [JsonPropertyName("tenantId")]
+    public string TenantId { get; set; }
 
-FRTB Hierarchy
+    [JsonPropertyName("clientId")]
+    public string ClientId { get; set; }
 
-LSDB
+    [JsonPropertyName("secretStore")]
+    public string SecretStore { get; set; }
 
-More Fields
+    [JsonPropertyName("cobDate")]
+    public string CobDate { get; set; }
 
-Let me know if you have any questions or suggestions.
+    [JsonPropertyName("isRetry")]
+    public bool IsRetry { get; set; }
 
-Thanks,
-Julio Díaz
+    [JsonPropertyName("dbxInstance")]
+    public string DbxInstance { get; set; }
 
-Let me know if you'd like a more concise version or if you're replying with any follow-up action.
+    [JsonPropertyName("dbxPath")]
+    public string DbxPath { get; set; }
 
+    [JsonPropertyName("dbxDatabase")]
+    public string DbxDatabase { get; set; }
 
+    [JsonPropertyName("modelName")]
+    public string ModelName { get; set; }
 
+    [JsonPropertyName("readinessCategory")]
+    public string ReadinessCategory { get; set; }
 
+    [JsonPropertyName("readinessSubCategory")]
+    public string ReadinessSubCategory { get; set; }
 
+    [JsonPropertyName("readinessComponent")]
+    public string ReadinessComponent { get; set; }
 
-
-
-
+    [JsonPropertyName("readinessStatus")]
+    public string ReadinessStatus { get; set; }
+}
