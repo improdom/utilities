@@ -1,62 +1,47 @@
 using System;
 using System.Text.Json.Serialization;
 
-public class ReadinessResponseDto
+public class NodeEventPayload
 {
-    public string ProcessEventLogId { get; set; }
-    public string BusinessDate { get; set; }
+    [JsonPropertyName("hierarchyLevel")]
+    public string HierarchyLevel { get; set; }
+
+    [JsonPropertyName("nodeEventName")]
+    public string NodeEventName { get; set; }
+
+    [JsonPropertyName("businessHierarchyNodeId")]
+    public string BusinessHierarchyNodeId { get; set; }
+
+    [JsonPropertyName("businessHierarchyNodeName")]
+    public string BusinessHierarchyNodeName { get; set; }
+
+    [JsonPropertyName("nodeTriggerStatus")]
+    public string NodeTriggerStatus { get; set; }
+
+    [JsonPropertyName("businessDate")]
+    public string BusinessDate { get; set; } // Consider DateTime if format is always ISO
+
+    [JsonPropertyName("eventName")]
     public string EventName { get; set; }
-    public string SourceEnvironment { get; set; }
-    public string SourceEventTs { get; set; } // Consider using DateTime?
-    public string DatasetName { get; set; }
-    public string SourceSystem { get; set; }
 
-    // Commented out in original Java
-    // public string DataContext { get; set; }
-    // public string RdmBusinessArea { get; set; }
+    [JsonPropertyName("sourceEventTs")]
+    public string SourceEventTs { get; set; } // Or DateTime
 
-    public string RiskSystemType { get; set; }
-    public int RunVersion { get; set; }
-    public string BusinessLevel { get; set; }
-    public int BusinessViewModel { get; set; }
-    public string BusinessViewModelName { get; set; }
-    public string RunContext { get; set; }
-    public string EventMessage { get; set; }
+    [JsonPropertyName("sourceSystemId")]
+    public string SourceSystemId { get; set; }
 
-    [JsonPropertyName("updateTime")]
-    [JsonConverter(typeof(JsonDateTimeConverter))] // You'll need to implement this
-    public DateTime UpdateTime { get; set; }
+    [JsonPropertyName("sourceSystemName")]
+    public string SourceSystemName { get; set; }
 
-    public string CalcCategory { get; set; }
-    public string ResultType { get; set; }
+    [JsonPropertyName("region")]
     public string Region { get; set; }
-    public string DataCategory { get; set; }
-    public string DataSubCategory { get; set; }
 
-    [JsonIgnore]
-    public string ResourceWeightage { get; set; }
+    [JsonPropertyName("calcCategory")]
+    public string CalcCategory { get; set; }
 
-    [JsonIgnore]
-    public string EventId { get; set; }
-}
+    [JsonPropertyName("resultType")]
+    public string ResultType { get; set; }
 
-
-using System;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Globalization;
-
-public class JsonDateTimeConverter : JsonConverter<DateTime>
-{
-    private const string Format = "yyyy-MM-dd'T'HH:mm:ss.fff'Z'";
-
-    public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-    {
-        return DateTime.ParseExact(reader.GetString(), Format, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal);
-    }
-
-    public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options)
-    {
-        writer.WriteStringValue(value.ToUniversalTime().ToString(Format));
-    }
+    [JsonPropertyName("triggerStatus")]
+    public string TriggerStatus { get; set; }
 }
