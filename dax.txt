@@ -1,47 +1,19 @@
-using System;
-using System.Text.Json.Serialization;
+from time import sleep
+from datetime import datetime
 
-public class NodeEventPayload
-{
-    [JsonPropertyName("hierarchyLevel")]
-    public string HierarchyLevel { get; set; }
+# You can configure how long to run this loop (e.g., 60 minutes = 60 iterations)
+duration_minutes = 60
 
-    [JsonPropertyName("nodeEventName")]
-    public string NodeEventName { get; set; }
+print(f"Starting keep-alive loop at {datetime.now()} for {duration_minutes} minutes...")
 
-    [JsonPropertyName("businessHierarchyNodeId")]
-    public string BusinessHierarchyNodeId { get; set; }
+for i in range(duration_minutes):
+    # Run a simple harmless query that doesn't consume much resources
+    result = spark.sql("SELECT current_date()")
+    result.show()
 
-    [JsonPropertyName("businessHierarchyNodeName")]
-    public string BusinessHierarchyNodeName { get; set; }
+    print(f"Keep-alive iteration {i + 1} at {datetime.now()}")
+    
+    # Wait for 60 seconds
+    sleep(60)
 
-    [JsonPropertyName("nodeTriggerStatus")]
-    public string NodeTriggerStatus { get; set; }
-
-    [JsonPropertyName("businessDate")]
-    public string BusinessDate { get; set; } // Consider DateTime if format is always ISO
-
-    [JsonPropertyName("eventName")]
-    public string EventName { get; set; }
-
-    [JsonPropertyName("sourceEventTs")]
-    public string SourceEventTs { get; set; } // Or DateTime
-
-    [JsonPropertyName("sourceSystemId")]
-    public string SourceSystemId { get; set; }
-
-    [JsonPropertyName("sourceSystemName")]
-    public string SourceSystemName { get; set; }
-
-    [JsonPropertyName("region")]
-    public string Region { get; set; }
-
-    [JsonPropertyName("calcCategory")]
-    public string CalcCategory { get; set; }
-
-    [JsonPropertyName("resultType")]
-    public string ResultType { get; set; }
-
-    [JsonPropertyName("triggerStatus")]
-    public string TriggerStatus { get; set; }
-}
+print(f"Keep-alive loop ended at {datetime.now()}")
