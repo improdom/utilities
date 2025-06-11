@@ -1,63 +1,12 @@
-protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-{
-    const int apiPollingIntervalMs = 10 * 1000;         // 10 seconds
-    const int orchestratorPollingIntervalMs = 2 * 60 * 1000; // 2 minutes
+SELECT *
+FROM mr_agg_model_refresh.pbi_query_readiness_status r
+JOIN mr_agg_model_refresh.pbi_queries q ON r.query_id = q.id
+JOIN mr_agg_model_refresh.pbi_query_spaces s ON q.query_space_id = s.id
+LEFT JOIN mr_agg_model_refresh.pbi_query_execution_status qe ON q.id = qe.query_id
+WHERE r.query_id = 56 AND r.cob_date = '2025-06-10';
 
-    using var scope = _scopeFactory.CreateScope();
-    _readinessTracker = scope.ServiceProvider.GetRequiredService<ExecutionReadinessTracker>();
 
-    _logger.LogInformation("SubDeskReadinessWorker started.");
 
-    DateTime lastOrchestratorCheck = DateTime.UtcNow;
-    List<Node> accumulatedOrchestratorNodes = new();
-
-    while (!stoppingToken.IsCancellationRequested)
-    {
-        try
-        {
-            var now = DateTime.UtcNow;
-
-            // Step 1: Call orchestrator every 2 minutes
-            if ((now - lastOrchestratorCheck).TotalMilliseconds >= orchestratorPollingIntervalMs)
-            {
-                DateTime fromRange = lastOrchestratorCheck;
-                DateTime toRange = now;
-                lastOrchestratorCheck = toRange;
-
-                var orchestratorReadyNodes = await _dataReadinessService
-                    .GetNodeReadinessFromOrchestrator(fromRange, toRange);
-
-                if (orchestratorReadyNodes.Any())
-                {
-                    accumulatedOrchestratorNodes.AddRange(orchestratorReadyNodes);
-                }
-            }
-
-            // Step 2: Poll API every 10 seconds
-            var apiReadyNodes = _eventQueue.DequeueAll();
-
-            var allReadyNodes = accumulatedOrchestratorNodes.Union(apiReadyNodes).ToList();
-
-            if (allReadyNodes.Any())
-            {
-                var currentCoB = allReadyNodes.Max(x => x.BusinessDate);
-                _logger.LogInformation("Received readiness event for sub-desk: {SubDesk}", allReadyNodes);
-                await _readinessTracker.MarkNodeAsReady(allReadyNodes, currentCoB);
-
-                // Clear processed orchestrator nodes
-                accumulatedOrchestratorNodes.Clear();
-            }
-
-            await Task.Delay(apiPollingIntervalMs, stoppingToken);
-        }
-        catch (OperationCanceledException)
-        {
-            // graceful shutdown
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unexpected error in SubDeskReadinessWorker.");
-            await Task.Delay(apiPollingIntervalMs, stoppingToken); // prevent tight loop on error
-        }
-    }
-}
+COUNT(DISTINCT r.node_id) AS TotalNodes,
+COUNT(DISTINCT r.node_id) FILTER (WHERE is_ready = false) AS PendingNodes,
+COUNT(DISTINCT r.node_id) FILTER (WHERE is_ready = true) AS ReadyNodes
