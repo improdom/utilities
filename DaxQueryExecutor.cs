@@ -1,20 +1,63 @@
-Hi [Manager's Name],
+protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+{
+    const int apiPollingIntervalMs = 10 * 1000;         // 10 seconds
+    const int orchestratorPollingIntervalMs = 2 * 60 * 1000; // 2 minutes
 
-Following our meeting earlier today, I wanted to summarize and confirm our agreement regarding the implementation of a readiness event for the Trend Data Retention Service.
+    using var scope = _scopeFactory.CreateScope();
+    _readinessTracker = scope.ServiceProvider.GetRequiredService<ExecutionReadinessTracker>();
 
-We agreed to introduce a new event in the Event Hub—tentatively named ARC_PBI_QUERY_SPACE_READY—which will be raised by the retention service once all queries within a given query space have been successfully completed. When this occurs, the query space is considered to be in a Ready state.
+    _logger.LogInformation("SubDeskReadinessWorker started.");
 
-Clients subscribed to this service will listen for this event to determine when it's safe to proceed with their downstream processes, such as refreshing Trend reports. The event will include the following required fields:
+    DateTime lastOrchestratorCheck = DateTime.UtcNow;
+    List<Node> accumulatedOrchestratorNodes = new();
 
-querySpaceName
+    while (!stoppingToken.IsCancellationRequested)
+    {
+        try
+        {
+            var now = DateTime.UtcNow;
 
-businessDate
+            // Step 1: Call orchestrator every 2 minutes
+            if ((now - lastOrchestratorCheck).TotalMilliseconds >= orchestratorPollingIntervalMs)
+            {
+                DateTime fromRange = lastOrchestratorCheck;
+                DateTime toRange = now;
+                lastOrchestratorCheck = toRange;
 
-Optionally, the event can include metadata like source system name, creation timestamps, and system tags, depending on client needs.
+                var orchestratorReadyNodes = await _dataReadinessService
+                    .GetNodeReadinessFromOrchestrator(fromRange, toRange);
 
-This new event structure enhances clarity and coordination between systems, ensuring clients can reliably trigger actions based on query readiness.
+                if (orchestratorReadyNodes.Any())
+                {
+                    accumulatedOrchestratorNodes.AddRange(orchestratorReadyNodes);
+                }
+            }
 
-Please let me know if you’d like me to proceed with documenting the schema or initiating development tasks.
+            // Step 2: Poll API every 10 seconds
+            var apiReadyNodes = _eventQueue.DequeueAll();
 
-Best regards,
-Julio Diaz
+            var allReadyNodes = accumulatedOrchestratorNodes.Union(apiReadyNodes).ToList();
+
+            if (allReadyNodes.Any())
+            {
+                var currentCoB = allReadyNodes.Max(x => x.BusinessDate);
+                _logger.LogInformation("Received readiness event for sub-desk: {SubDesk}", allReadyNodes);
+                await _readinessTracker.MarkNodeAsReady(allReadyNodes, currentCoB);
+
+                // Clear processed orchestrator nodes
+                accumulatedOrchestratorNodes.Clear();
+            }
+
+            await Task.Delay(apiPollingIntervalMs, stoppingToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // graceful shutdown
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error in SubDeskReadinessWorker.");
+            await Task.Delay(apiPollingIntervalMs, stoppingToken); // prevent tight loop on error
+        }
+    }
+}
