@@ -11,7 +11,7 @@ public static class DaxQueryFilterManager
     {
         string newFilter = $"KEEPFILTERS(TREATAS({{ DATE({cobDate.Year}, {cobDate.Month}, {cobDate.Day}) }}, 'COB Date'[COB Date]))";
 
-        // Strip existing date filters
+        // Strip any existing COB Date filters
         var treatasPattern = new Regex(
             @"KEEPFILTERS\s*\(\s*TREATAS\s*\(\s*\{\s*DATE\s*\(\s*\d{4},\s*\d{1,2},\s*\d{1,2}\s*\)\s*\}\s*,\s*'[^']*COB\s*Date'\s*\[\s*COB\s*Date\s*\]\s*\)\s*\)",
             RegexOptions.IgnoreCase);
@@ -31,7 +31,7 @@ public static class DaxQueryFilterManager
             string[] parts = SplitSummarizeColumnsArgs(args);
             int lastOutputIndex = FindLastOutputIndex(parts);
 
-            var output = string.Join(",\n    ", parts[..(lastOutputIndex + 1)]);
+            var output = string.Join(",\n    ", TrimTrailingCommas(parts[..(lastOutputIndex + 1)]));
             var filters = (lastOutputIndex < parts.Length - 1)
                 ? string.Join(",\n    ", parts[(lastOutputIndex + 1)..])
                 : "";
@@ -61,13 +61,10 @@ public static class DaxQueryFilterManager
             );
         }
 
-        // Fallback: wrap entire query
+        // Fallback: wrap in CALCULATETABLE
         return $"EVALUATE CALCULATETABLE(\n    {daxQuery.Trim()},\n    {newFilter}\n)";
     }
 
-    /// <summary>
-    /// Splits the arguments of a SUMMARIZECOLUMNS call, respecting nesting and quotes.
-    /// </summary>
     private static string[] SplitSummarizeColumnsArgs(string args)
     {
         var results = new List<string>();
@@ -100,23 +97,28 @@ public static class DaxQueryFilterManager
         return results.ToArray();
     }
 
-    /// <summary>
-    /// Returns the index of the last output column (before filters begin).
-    /// </summary>
     private static int FindLastOutputIndex(string[] parts)
     {
         for (int i = 0; i < parts.Length; i++)
         {
             var part = parts[i].TrimStart();
-            if (part.StartsWith("KEEPFILTERS", StringComparison.OrdinalIgnoreCase) ||
-                part.StartsWith("FILTER", StringComparison.OrdinalIgnoreCase) ||
-                part.StartsWith("TREATAS", StringComparison.OrdinalIgnoreCase) ||
-                part.StartsWith("\""))
+            if (part.StartsWith("KEEPFILTERS", StringComparison.OrdinalIgnoreCase)
+                || part.StartsWith("FILTER", StringComparison.OrdinalIgnoreCase)
+                || part.StartsWith("TREATAS", StringComparison.OrdinalIgnoreCase)
+                || part.StartsWith("\""))
             {
                 return i - 1;
             }
         }
 
         return parts.Length - 1;
+    }
+
+    private static IEnumerable<string> TrimTrailingCommas(IEnumerable<string> values)
+    {
+        foreach (var value in values)
+        {
+            yield return value.TrimEnd(',');
+        }
     }
 }
