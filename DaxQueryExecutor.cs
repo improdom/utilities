@@ -1,12 +1,50 @@
+WITH SUMMARY AS (
+    SELECT
+        S.NAME AS QUERYSPACE,
+        R.QUERY_ID AS QUERYID,
+        Q.NAME AS QUERYNAME,
+        R.COB_DATE AS COBDATE,
+        CASE
+            WHEN QE.STATUS IS NULL THEN 'Pending'
+            ELSE QE.STATUS
+        END AS QUERYSTATUS,
+        COUNT(DISTINCT R.NODE_ID) AS TOTALNODES,
+        COUNT(DISTINCT R.NODE_ID) FILTER (WHERE IS_READY = FALSE) AS PENDINGNODES,
+        COUNT(DISTINCT R.NODE_ID) FILTER (WHERE IS_READY = TRUE) AS READYNODES
+    FROM MR_AGG_MODEL_REFRESH.PBI_QUERY_READINESS_STATUS R
+    JOIN MR_AGG_MODEL_REFRESH.PBI_QUERIES Q ON R.QUERY_ID = Q.ID
+    JOIN MR_AGG_MODEL_REFRESH.PBI_QUERY_SPACES S ON Q.QUERY_SPACE_ID = S.ID
+    LEFT OUTER JOIN MR_AGG_MODEL_REFRESH.PBI_QUERY_EXECUTION_STATUS QE
+        ON Q.ID = QE.QUERY_ID AND R.COB_DATE = QE.COB_DATE
+    WHERE R.COB_DATE = '2025-06-11'
+    GROUP BY
+        R.QUERY_ID,
+        Q.NAME,
+        S.NAME,
+        QE.STATUS,
+        R.COB_DATE
+),
+AGGREGATED AS (
+    SELECT
+        QUERYSPACE,
+        COBDATE,
+        COUNT(*) AS TOTAL_QUERIES,
+        COUNT(*) FILTER (WHERE QUERYSTATUS = 'Success') AS SUCCESSFUL_QUERIES
+    FROM SUMMARY
+    GROUP BY QUERYSPACE, COBDATE
+),
+FINAL AS (
+    SELECT
+        S.*,
+        CASE
+            WHEN A.SUCCESSFUL_QUERIES = A.TOTAL_QUERIES THEN 'Ready'
+            WHEN A.SUCCESSFUL_QUERIES = 0 THEN 'Pending'
+            ELSE 'InProgress'
+        END AS QUERYSPACESTATUS
+    FROM SUMMARY S
+    JOIN AGGREGATED A
+        ON S.QUERYSPACE = A.QUERYSPACE AND S.COBDATE = A.COBDATE
+)
 SELECT *
-FROM mr_agg_model_refresh.pbi_query_readiness_status r
-JOIN mr_agg_model_refresh.pbi_queries q ON r.query_id = q.id
-JOIN mr_agg_model_refresh.pbi_query_spaces s ON q.query_space_id = s.id
-LEFT JOIN mr_agg_model_refresh.pbi_query_execution_status qe ON q.id = qe.query_id
-WHERE r.query_id = 56 AND r.cob_date = '2025-06-10';
-
-
-
-COUNT(DISTINCT r.node_id) AS TotalNodes,
-COUNT(DISTINCT r.node_id) FILTER (WHERE is_ready = false) AS PendingNodes,
-COUNT(DISTINCT r.node_id) FILTER (WHERE is_ready = true) AS ReadyNodes
+FROM FINAL
+ORDER BY QUERYID;
