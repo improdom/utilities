@@ -1,37 +1,37 @@
-using System;
-using System.Collections.Generic;
-using System.Text.RegularExpressions;
-
-public class DaxFilterParser
+public static string InjectOrReplaceCobDateFilter(string daxQuery, DateTime cobDate)
 {
-    public static List<DateTime> ExtractCobDates(string daxQuery)
+    // Normalize query to avoid casing/spacing issues for regex but keep original for rewriting
+    string normalized = Regex.Replace(daxQuery, @"\s+", " ").ToLowerInvariant();
+
+    string pattern = @"keepfilters\s*\(\s*treatas\s*\(\s*\{\s*date\s*\(\s*\d{4}\s*,\s*\d{1,2}\s*,\s*\d{1,2}\s*\)\s*\}\s*,\s*'[^']*cob\s*date'\s*\[\s*cob\s*date\s*\]\s*\)\s*\)";
+    var regex = new Regex(pattern, RegexOptions.IgnoreCase);
+    var match = regex.Match(daxQuery);
+
+    string newDate = $"KEEPFILTERS(TREATAS({{ DATE({cobDate.Year}, {cobDate.Month}, {cobDate.Day}) }}, 'COB Date'[COB Date]))";
+
+    if (match.Success)
     {
-        var cobDates = new List<DateTime>();
+        // Replace existing COB Date filter
+        string existingFilter = match.Value;
+        return daxQuery.Replace(existingFilter, newDate);
+    }
+    else
+    {
+        // Inject new filter: after first DEFINE or VAR block (or at the top if none)
+        var injectIndex = daxQuery.IndexOf("RETURN", StringComparison.OrdinalIgnoreCase);
+        if (injectIndex == -1)
+            injectIndex = daxQuery.IndexOf("EVALUATE", StringComparison.OrdinalIgnoreCase);
+        if (injectIndex == -1)
+            injectIndex = daxQuery.IndexOf("VAR", StringComparison.OrdinalIgnoreCase);
 
-        // Normalize input: remove extra spaces, unify casing
-        var normalized = Regex.Replace(daxQuery, @"\s+", " ").ToLowerInvariant();
-
-        // Match patterns like: treatas({ date(2025, 6, 11) }, 'cob date'[cob date])
-        var pattern = @"treatas\s*\(\s*\{\s*date\s*\(\s*(\d{4})\s*,\s*(\d{1,2})\s*,\s*(\d{1,2})\s*\)\s*\}\s*,\s*'[^']*cob\s*date'\s*\[\s*cob\s*date\s*\]\s*\)";
-
-        var matches = Regex.Matches(normalized, pattern, RegexOptions.IgnoreCase);
-        foreach (Match match in matches)
+        if (injectIndex > 0)
         {
-            if (int.TryParse(match.Groups[1].Value, out int year) &&
-                int.TryParse(match.Groups[2].Value, out int month) &&
-                int.TryParse(match.Groups[3].Value, out int day))
-            {
-                try
-                {
-                    cobDates.Add(new DateTime(year, month, day));
-                }
-                catch
-                {
-                    // Skip invalid dates
-                }
-            }
+            return daxQuery.Insert(injectIndex, newDate + "\n");
         }
-
-        return cobDates;
+        else
+        {
+            // Fallback: add to top of query
+            return newDate + "\n" + daxQuery;
+        }
     }
 }
