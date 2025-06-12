@@ -1,27 +1,18 @@
-WITH SUMMARY AS (
-    SELECT
-        S.NAME AS QUERYSPACE,
-        R.QUERY_ID AS QUERYID,
-        Q.NAME AS QUERYNAME,
-        R.COB_DATE AS COBDATE,
-        
-        -- Execution status
-        CASE 
-            WHEN QE.STATUS IS NULL THEN 'Pending'
-            ELSE QE.STATUS
-        END AS executionStatus,
-        
-        -- Readiness status
-        COUNT(DISTINCT R.NODE_ID) AS totalNodes,
-        COUNT(DISTINCT R.NODE_ID) FILTER (WHERE IS_READY = FALSE) AS pendingNodes,
-        COUNT(DISTINCT R.NODE_ID) FILTER (WHERE IS_READY = TRUE) AS readyNodes,
-        
-        CASE
-            WHEN COUNT(DISTINCT R.NODE_ID) FILTER (WHERE IS_READY = TRUE) = 0 THEN 'Pending'
-            WHEN COUNT(DISTINCT R.NODE_ID) FILTER (WHERE IS_READY = FALSE) = 0 THEN 'Ready'
-            ELSE 'InProgress'
-        END AS readinessStatus
+@startuml
+!theme plain
+actor User
+entity "Query Space API" as Scheduler
+entity "Query Executor" as Executor
+entity "Power BI" as PBI
 
-    FROM ...
-    ...
-)
+
+User -> Scheduler : Registers query 
+
+User -> Scheduler : Sets data readiness configuration
+Scheduler -> Executor : Executes query based on schedule
+User -> Executor : Monitors execution status
+
+Executor -> User : Notifies query completion and status
+
+User -> PBI : Retrieves data from Power BI
+@enduml
