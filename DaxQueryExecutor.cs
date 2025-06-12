@@ -5,13 +5,13 @@ using System.Text.RegularExpressions;
 public static class DaxQueryFilterManager
 {
     /// <summary>
-    /// Ensures the provided DAX query includes a filter on 'COB Date'[COB Date], replacing any existing one.
+    /// Injects or replaces a KEEPFILTERS(TREATAS(...)) filter for 'COB Date'[COB Date] in a DAX query.
     /// </summary>
     public static string InjectCobDateFilter(string daxQuery, DateTime cobDate)
     {
         string newFilter = $"KEEPFILTERS(TREATAS({{ DATE({cobDate.Year}, {cobDate.Month}, {cobDate.Day}) }}, 'COB Date'[COB Date]))";
 
-        // Strip any existing COB Date filters
+        // Remove any existing COB Date filters
         var treatasPattern = new Regex(
             @"KEEPFILTERS\s*\(\s*TREATAS\s*\(\s*\{\s*DATE\s*\(\s*\d{4},\s*\d{1,2},\s*\d{1,2}\s*\)\s*\}\s*,\s*'[^']*COB\s*Date'\s*\[\s*COB\s*Date\s*\]\s*\)\s*\)",
             RegexOptions.IgnoreCase);
@@ -29,16 +29,22 @@ public static class DaxQueryFilterManager
         {
             string args = summarizeMatch.Groups[1].Value;
             string[] parts = SplitSummarizeColumnsArgs(args);
-            int lastOutputIndex = FindLastOutputIndex(parts);
+            parts = CleanParts(parts);
 
-            var output = string.Join(",\n    ", TrimTrailingCommas(parts[..(lastOutputIndex + 1)]));
+            int lastOutputIndex = FindLastOutputIndex(parts);
+            var output = string.Join(",\n    ", parts[..(lastOutputIndex + 1)]);
             var filters = (lastOutputIndex < parts.Length - 1)
                 ? string.Join(",\n    ", parts[(lastOutputIndex + 1)..])
                 : "";
 
-            string rebuilt = string.IsNullOrWhiteSpace(filters)
-                ? $"{output},\n    {newFilter}"
-                : $"{output},\n    {newFilter},\n    {filters}";
+            string rebuilt = output;
+            if (!string.IsNullOrWhiteSpace(output))
+                rebuilt += ",";
+
+            rebuilt += $"\n    {newFilter}";
+
+            if (!string.IsNullOrWhiteSpace(filters))
+                rebuilt += ",\n    " + filters;
 
             return daxQuery.Replace(args, rebuilt);
         }
@@ -61,7 +67,7 @@ public static class DaxQueryFilterManager
             );
         }
 
-        // Fallback: wrap in CALCULATETABLE
+        // Fallback: wrap the entire query
         return $"EVALUATE CALCULATETABLE(\n    {daxQuery.Trim()},\n    {newFilter}\n)";
     }
 
@@ -75,10 +81,7 @@ public static class DaxQueryFilterManager
         for (int i = 0; i < args.Length; i++)
         {
             char c = args[i];
-            if (c == '"' || c == '\'')
-            {
-                inString = !inString;
-            }
+            if (c == '"' || c == '\'') inString = !inString;
             else if (!inString)
             {
                 if (c == '(') depth++;
@@ -97,28 +100,31 @@ public static class DaxQueryFilterManager
         return results.ToArray();
     }
 
+    private static string[] CleanParts(string[] parts)
+    {
+        var cleaned = new List<string>();
+        foreach (var part in parts)
+        {
+            if (!string.IsNullOrWhiteSpace(part))
+                cleaned.Add(part.Trim().TrimEnd(','));
+        }
+        return cleaned.ToArray();
+    }
+
     private static int FindLastOutputIndex(string[] parts)
     {
         for (int i = 0; i < parts.Length; i++)
         {
             var part = parts[i].TrimStart();
-            if (part.StartsWith("KEEPFILTERS", StringComparison.OrdinalIgnoreCase)
-                || part.StartsWith("FILTER", StringComparison.OrdinalIgnoreCase)
-                || part.StartsWith("TREATAS", StringComparison.OrdinalIgnoreCase)
-                || part.StartsWith("\""))
+            if (part.StartsWith("KEEPFILTERS", StringComparison.OrdinalIgnoreCase) ||
+                part.StartsWith("FILTER", StringComparison.OrdinalIgnoreCase) ||
+                part.StartsWith("TREATAS", StringComparison.OrdinalIgnoreCase) ||
+                part.StartsWith("\""))
             {
                 return i - 1;
             }
         }
 
         return parts.Length - 1;
-    }
-
-    private static IEnumerable<string> TrimTrailingCommas(IEnumerable<string> values)
-    {
-        foreach (var value in values)
-        {
-            yield return value.TrimEnd(',');
-        }
     }
 }
