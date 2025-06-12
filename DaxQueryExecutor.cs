@@ -1,13 +1,17 @@
 using System;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
 public static class DaxQueryFilterManager
 {
+    /// <summary>
+    /// Ensures the provided DAX query includes a filter on 'COB Date'[COB Date], replacing any existing one.
+    /// </summary>
     public static string InjectCobDateFilter(string daxQuery, DateTime cobDate)
     {
         string newFilter = $"KEEPFILTERS(TREATAS({{ DATE({cobDate.Year}, {cobDate.Month}, {cobDate.Day}) }}, 'COB Date'[COB Date]))";
 
-        // Step 1: Strip any previous date filters
+        // Strip existing date filters
         var treatasPattern = new Regex(
             @"KEEPFILTERS\s*\(\s*TREATAS\s*\(\s*\{\s*DATE\s*\(\s*\d{4},\s*\d{1,2},\s*\d{1,2}\s*\)\s*\}\s*,\s*'[^']*COB\s*Date'\s*\[\s*COB\s*Date\s*\]\s*\)\s*\)",
             RegexOptions.IgnoreCase);
@@ -19,7 +23,7 @@ public static class DaxQueryFilterManager
         daxQuery = treatasPattern.Replace(daxQuery, "");
         daxQuery = directEqPattern.Replace(daxQuery, "");
 
-        // Step 2: Handle SUMMARIZECOLUMNS
+        // Handle SUMMARIZECOLUMNS
         var summarizeMatch = Regex.Match(daxQuery, @"(?i)SUMMARIZECOLUMNS\s*\((.*?)\)", RegexOptions.Singleline);
         if (summarizeMatch.Success)
         {
@@ -27,17 +31,19 @@ public static class DaxQueryFilterManager
             string[] parts = SplitSummarizeColumnsArgs(args);
             int lastOutputIndex = FindLastOutputIndex(parts);
 
-            // Insert filter after output attributes
-            var rebuilt = string.Join(",\n    ", parts[..(lastOutputIndex + 1)])
-                        + ",\n    " + newFilter
-                        + ((lastOutputIndex < parts.Length - 1)
-                            ? ",\n    " + string.Join(",\n    ", parts[(lastOutputIndex + 1)..])
-                            : "");
+            var output = string.Join(",\n    ", parts[..(lastOutputIndex + 1)]);
+            var filters = (lastOutputIndex < parts.Length - 1)
+                ? string.Join(",\n    ", parts[(lastOutputIndex + 1)..])
+                : "";
+
+            string rebuilt = string.IsNullOrWhiteSpace(filters)
+                ? $"{output},\n    {newFilter}"
+                : $"{output},\n    {newFilter},\n    {filters}";
 
             return daxQuery.Replace(args, rebuilt);
         }
 
-        // Step 3: Try CALCULATETABLE
+        // Handle CALCULATETABLE
         var calcMatch = Regex.Match(daxQuery, @"(?i)CALCULATETABLE\s*\(\s*", RegexOptions.IgnoreCase);
         if (calcMatch.Success)
         {
@@ -45,19 +51,23 @@ public static class DaxQueryFilterManager
             return daxQuery.Insert(insertPos, newFilter + ",\n    ");
         }
 
-        // Step 4: Try VAR __DS0FilterTable
+        // Handle VAR __DS0FilterTable
         var ds0VarPattern = new Regex(@"(?i)var\s+__ds0filtertable\s*=\s*treatas\s*\([^\)]*\)");
         if (ds0VarPattern.IsMatch(daxQuery))
         {
-            return treatasPattern.Replace(daxQuery,
-                $"TREATAS({{ DATE({cobDate.Year}, {cobDate.Month}, {cobDate.Day}) }}, 'COB Date'[COB Date])");
+            return treatasPattern.Replace(
+                daxQuery,
+                $"TREATAS({{ DATE({cobDate.Year}, {cobDate.Month}, {cobDate.Day}) }}, 'COB Date'[COB Date])"
+            );
         }
 
         // Fallback: wrap entire query
         return $"EVALUATE CALCULATETABLE(\n    {daxQuery.Trim()},\n    {newFilter}\n)";
     }
 
-    // Splits arguments while preserving nested parentheses and string quotes
+    /// <summary>
+    /// Splits the arguments of a SUMMARIZECOLUMNS call, respecting nesting and quotes.
+    /// </summary>
     private static string[] SplitSummarizeColumnsArgs(string args)
     {
         var results = new List<string>();
@@ -68,8 +78,11 @@ public static class DaxQueryFilterManager
         for (int i = 0; i < args.Length; i++)
         {
             char c = args[i];
-            if (c == '"' || c == '\'') inString = !inString;
-            if (!inString)
+            if (c == '"' || c == '\'')
+            {
+                inString = !inString;
+            }
+            else if (!inString)
             {
                 if (c == '(') depth++;
                 else if (c == ')') depth--;
@@ -87,14 +100,18 @@ public static class DaxQueryFilterManager
         return results.ToArray();
     }
 
-    // Heuristic: anything that starts with KEEPFILTERS or FILTER is not output
+    /// <summary>
+    /// Returns the index of the last output column (before filters begin).
+    /// </summary>
     private static int FindLastOutputIndex(string[] parts)
     {
         for (int i = 0; i < parts.Length; i++)
         {
-            if (parts[i].TrimStart().StartsWith("KEEPFILTERS", StringComparison.OrdinalIgnoreCase)
-                || parts[i].TrimStart().StartsWith("FILTER", StringComparison.OrdinalIgnoreCase)
-                || parts[i].TrimStart().StartsWith("TREATAS", StringComparison.OrdinalIgnoreCase))
+            var part = parts[i].TrimStart();
+            if (part.StartsWith("KEEPFILTERS", StringComparison.OrdinalIgnoreCase) ||
+                part.StartsWith("FILTER", StringComparison.OrdinalIgnoreCase) ||
+                part.StartsWith("TREATAS", StringComparison.OrdinalIgnoreCase) ||
+                part.StartsWith("\""))
             {
                 return i - 1;
             }
