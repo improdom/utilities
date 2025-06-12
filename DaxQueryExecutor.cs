@@ -1,37 +1,62 @@
-public static string InjectOrReplaceCobDateFilter(string daxQuery, DateTime cobDate)
+using System;
+using System.Text.RegularExpressions;
+
+public static class DaxQueryFilterManager
 {
-    // Normalize query to avoid casing/spacing issues for regex but keep original for rewriting
-    string normalized = Regex.Replace(daxQuery, @"\s+", " ").ToLowerInvariant();
-
-    string pattern = @"keepfilters\s*\(\s*treatas\s*\(\s*\{\s*date\s*\(\s*\d{4}\s*,\s*\d{1,2}\s*,\s*\d{1,2}\s*\)\s*\}\s*,\s*'[^']*cob\s*date'\s*\[\s*cob\s*date\s*\]\s*\)\s*\)";
-    var regex = new Regex(pattern, RegexOptions.IgnoreCase);
-    var match = regex.Match(daxQuery);
-
-    string newDate = $"KEEPFILTERS(TREATAS({{ DATE({cobDate.Year}, {cobDate.Month}, {cobDate.Day}) }}, 'COB Date'[COB Date]))";
-
-    if (match.Success)
+    public static string InjectCobDateFilter(string daxQuery, DateTime cobDate)
     {
-        // Replace existing COB Date filter
-        string existingFilter = match.Value;
-        return daxQuery.Replace(existingFilter, newDate);
-    }
-    else
-    {
-        // Inject new filter: after first DEFINE or VAR block (or at the top if none)
-        var injectIndex = daxQuery.IndexOf("RETURN", StringComparison.OrdinalIgnoreCase);
-        if (injectIndex == -1)
-            injectIndex = daxQuery.IndexOf("EVALUATE", StringComparison.OrdinalIgnoreCase);
-        if (injectIndex == -1)
-            injectIndex = daxQuery.IndexOf("VAR", StringComparison.OrdinalIgnoreCase);
+        string newFilter = $"KEEPFILTERS(TREATAS({{ DATE({cobDate.Year}, {cobDate.Month}, {cobDate.Day}) }}, 'COB Date'[COB Date]))";
 
-        if (injectIndex > 0)
+        // Regex patterns to detect and remove any existing COB Date filters
+        var treatasPattern = new Regex(
+            @"KEEPFILTERS\s*\(\s*TREATAS\s*\(\s*\{\s*DATE\s*\(\s*\d{4},\s*\d{1,2},\s*\d{1,2}\s*\)\s*\}\s*,\s*'[^']*COB\s*Date'\s*\[\s*COB\s*Date\s*\]\s*\)\s*\)",
+            RegexOptions.IgnoreCase);
+
+        var directEqPattern = new Regex(
+            @"'[^']*COB\s*Date'\s*\[\s*COB\s*Date\s*\]\s*=\s*DATE\s*\(\s*\d{4},\s*\d{1,2},\s*\d{1,2}\s*\)",
+            RegexOptions.IgnoreCase);
+
+        var calcFilterPattern = new Regex(
+            @"CALCULATETABLE\s*\(\s*(.*?)\s*,\s*(" + treatasPattern + "|" + directEqPattern + @")\s*(,)?",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+        // Step 1: Remove any matching filters
+        daxQuery = treatasPattern.Replace(daxQuery, "");
+        daxQuery = directEqPattern.Replace(daxQuery, "");
+        daxQuery = calcFilterPattern.Replace(daxQuery, "CALCULATETABLE($1,");
+
+        // Step 2: Clean up possible syntax leftovers
+        daxQuery = Regex.Replace(daxQuery, @",\s*,", ",");
+        daxQuery = Regex.Replace(daxQuery, @"\(\s*,", "(");
+        daxQuery = Regex.Replace(daxQuery, @",\s*\)", ")");
+
+        // Step 3: Inject the new filter into the right location
+
+        // SUMMARIZECOLUMNS
+        var summarizeMatch = Regex.Match(daxQuery, @"(?i)SUMMARIZECOLUMNS\s*\(\s*");
+        if (summarizeMatch.Success)
         {
-            return daxQuery.Insert(injectIndex, newDate + "\n");
+            int insertPos = summarizeMatch.Index + summarizeMatch.Length;
+            return daxQuery.Insert(insertPos, newFilter + ",\n    ");
         }
-        else
+
+        // CALCULATETABLE
+        var calcMatch = Regex.Match(daxQuery, @"(?i)CALCULATETABLE\s*\(\s*");
+        if (calcMatch.Success)
         {
-            // Fallback: add to top of query
-            return newDate + "\n" + daxQuery;
+            int insertPos = calcMatch.Index + calcMatch.Length;
+            return daxQuery.Insert(insertPos, newFilter + ",\n    ");
         }
+
+        // VAR __DS0FilterTable = TREATAS(...)
+        var ds0VarPattern = new Regex(@"(?i)var\s+__ds0filtertable\s*=\s*treatas\s*\([^\)]*\)");
+        if (ds0VarPattern.IsMatch(daxQuery))
+        {
+            return treatasPattern.Replace(daxQuery,
+                $"TREATAS({{ DATE({cobDate.Year}, {cobDate.Month}, {cobDate.Day}) }}, 'COB Date'[COB Date])");
+        }
+
+        // Fallback: wrap entire query
+        return $"EVALUATE CALCULATETABLE(\n    {daxQuery.Trim()},\n    {newFilter}\n)";
     }
 }
