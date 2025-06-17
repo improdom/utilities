@@ -1,47 +1,52 @@
-using System;
+SUMMARY AS (
+    SELECT 
+        S.NAME AS QUERYSPACE,
+        R.QUERY_ID AS QUERYID,
+        Q.NAME AS QUERYNAME,
+        R.COB_DATE AS COBDATE,
+        CASE 
+            WHEN QE.STATUS IS NULL THEN 'Pending'
+            ELSE QE.STATUS
+        END AS QUERYSTATUS,
+        COUNT(DISTINCT R.NODE_ID) AS TOTALNODES,
+        COUNT(DISTINCT R.NODE_ID) FILTER (WHERE IS_READY = FALSE) AS PENDINGNODES,
+        COUNT(DISTINCT R.NODE_ID) FILTER (WHERE IS_READY = TRUE) AS READYNODES,
+        CASE
+            WHEN COUNT(DISTINCT R.NODE_ID) FILTER (WHERE IS_READY = TRUE) = 0 THEN 'Pending'
+            WHEN COUNT(DISTINCT R.NODE_ID) FILTER (WHERE IS_READY = FALSE) = 0 THEN 'Ready'
+            ELSE 'InProgress'
+        END AS READINESSSTATUS
+    FROM MR_AGG_MODEL_REFRESH.PBI_QUERY_READINESS_STATUS R
+    JOIN MR_AGG_MODEL_REFRESH.PBI_QUERIES Q ON R.QUERY_ID = Q.ID
+    JOIN MR_AGG_MODEL_REFRESH.PBI_QUERY_SPACES S ON Q.QUERY_SPACE_ID = S.ID
+    LEFT JOIN MR_AGG_MODEL_REFRESH.PBI_QUERY_EXECUTION_STATUS QE ON Q.ID = QE.QUERY_ID AND R.COB_DATE = QE.COB_DATE
+    WHERE R.COB_DATE = TO_DATE(:cobdate, 'yyyy-MM-dd')
+    GROUP BY R.QUERY_ID, Q.NAME, S.NAME, QE.STATUS, R.COB_DATE
+),
 
-namespace YourNamespace.Models
-{
-    public class QuerySpaceExecutionStatus
-    {
-        public long QuerySpaceId { get; set; }
+AGGREGATED AS (
+    SELECT 
+        QUERYSPACE,
+        COBDATE,
+        COUNT(*) AS TOTAL_QUERIES,
+        COUNT(*) FILTER (WHERE QUERYSTATUS = 'Succeeded') AS SUCCESSFUL_QUERIES
+    FROM SUMMARY
+    GROUP BY QUERYSPACE, COBDATE
+),
 
-        public DateTime CobDate { get; set; }
+FINAL AS (
+    SELECT
+        A.QUERYSPACE,
+        A.COBDATE,
+        CASE 
+            WHEN A.SUCCESSFUL_QUERIES = A.TOTAL_QUERIES THEN 'Ready'
+            WHEN A.SUCCESSFUL_QUERIES = 0 THEN 'Pending'
+            ELSE 'InProgress'
+        END AS QUERYSPACESTATUS
+    FROM AGGREGATED A
+)
 
-        public string Status { get; set; } = string.Empty;
-
-        public DateTime? LastAttempt { get; set; }
-
-        public DateTime LastUpdated { get; set; }
-
-        public bool ReadyEventPublished { get; set; }
-    }
-}
-
-
-
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-
-public class QuerySpaceExecutionStatusConfig : IEntityTypeConfiguration<QuerySpaceExecutionStatus>
-{
-    public void Configure(EntityTypeBuilder<QuerySpaceExecutionStatus> builder)
-    {
-        builder.ToTable("pbi_query_space_execution_status", schema: "mr_agg_model_refresh");
-
-        builder.HasKey(x => new { x.QuerySpaceId, x.CobDate });
-
-        builder.Property(x => x.Status)
-               .HasColumnName("status")
-               .HasMaxLength(50);
-
-        builder.Property(x => x.LastAttempt)
-               .HasColumnName("last_attempt");
-
-        builder.Property(x => x.LastUpdated)
-               .HasColumnName("last_updated");
-
-        builder.Property(x => x.ReadyEventPublished)
-               .HasColumnName("ready_event_published");
-    }
-}
+SELECT * 
+FROM FINAL CM
+JOIN SUMMARY A ON CM.QUERYSPACE = A.QUERYSPACE AND CM.COBDATE = A.COBDATE
+ORDER BY QUERYID;
