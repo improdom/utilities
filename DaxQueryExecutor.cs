@@ -1,26 +1,27 @@
 from pyspark.sql.functions import col
+from pyspark.sql.types import DecimalType
 
-# Table and database info
-database_name = "mt_arc_composite_gold_views"
+# Table info
+database_name = "hive_metastore.mt_arc_composite_gold_views"
 table_name = "pbi_data_retention_point"
 
-# Read the original Delta table
+# Read table
 df = spark.table(f"{database_name}.{table_name}")
 
-# Rename columns containing '__' to '_'
-renamed_df = df.select([
-    col(c).alias(c.replace("__", "_")) if "__" in c else col(c)
+# List of double columns to convert
+columns_to_convert = ["column1", "column2", "column3"]  # Replace with your actual column names
+
+# Cast specified columns to DecimalType
+converted_df = df.select([
+    col(c).cast(DecimalType(38, 10)).alias(c) if c in columns_to_convert else col(c)
     for c in df.columns
 ])
 
-# Backup original table (optional but recommended)
-backup_table_name = f"{table_name}_backup"
-spark.sql(f"CREATE TABLE IF NOT EXISTS {database_name}.{backup_table_name} AS SELECT * FROM {database_name}.{table_name}")
-
-# Overwrite the table with renamed columns
-renamed_df.write.format("delta") \
+# Overwrite the table (preserving partitioning if needed)
+converted_df.write.format("delta") \
+    .partitionBy("query_name") \  # Remove this line if your table is not partitioned
     .mode("overwrite") \
     .option("overwriteSchema", "true") \
     .saveAsTable(f"{database_name}.{table_name}")
 
-print("Column renaming completed successfully.")
+print("Table updated with selected columns converted to decimal.")
