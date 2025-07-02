@@ -1,3 +1,31 @@
+public static class EfJsonConversionHelper
+{
+    public static ValueConverter<List<T>, string> CreateJsonValueConverter<T>(JsonSerializerOptions? options = null)
+    {
+        options ??= new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+        return new ValueConverter<List<T>, string>(
+            v => JsonSerializer.Serialize(v, options),
+            v => JsonSerializer.Deserialize<List<T>>(v, options) ?? new()
+        );
+    }
+
+    public static ValueComparer<List<T>> CreateJsonValueComparer<T>(JsonSerializerOptions? options = null)
+    {
+        options ??= new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+        return new ValueComparer<List<T>>(
+            (c1, c2) => JsonSerializer.Serialize(c1, options) == JsonSerializer.Serialize(c2, options),
+            c => JsonSerializer.Serialize(c, options).GetHashCode(),
+            c => JsonSerializer.Deserialize<List<T>>(JsonSerializer.Serialize(c, options), options)!
+        );
+    }
+}
+
+
+
+
+
 
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using System.Text.Json;
