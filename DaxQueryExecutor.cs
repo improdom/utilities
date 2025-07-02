@@ -1,3 +1,27 @@
+
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using System.Text.Json;
+
+var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+var converter = new ValueConverter<List<QueryField>, string>(
+    v => JsonSerializer.Serialize(v, jsonOptions),
+    v => JsonSerializer.Deserialize<List<QueryField>>(v, jsonOptions) ?? new()
+);
+
+var comparer = new ValueComparer<List<QueryField>>(
+    (c1, c2) => JsonSerializer.Serialize(c1, jsonOptions) == JsonSerializer.Serialize(c2, jsonOptions),
+    c => JsonSerializer.Serialize(c, jsonOptions).GetHashCode(),
+    c => JsonSerializer.Deserialize<List<QueryField>>(JsonSerializer.Serialize(c, jsonOptions), jsonOptions)!
+);
+
+modelBuilder.Entity<PowerBIQuery>()
+    .Property(e => e.SelectedFields)
+    .HasColumnType("jsonb")
+    .HasConversion(converter)
+    .Metadata.SetValueComparer(comparer);
+
+
 Here's a professional email draft summarizing the MRV Definitions Update process and attaching the functional requirements document:
 
 ---
