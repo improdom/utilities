@@ -1,8 +1,23 @@
-Hi Siva / Anupam,
+DEFINE
+    VAR latestCob = CALCULATE(MAX('pbi_fact_risk_results_aggregated_vw'[Business Date]))
 
-Please find attached the technical design documentation for the Query Space API. While we understand that the final use cases and requirements are still being defined, this document outlines the core use cases for trending through the data retention feature from our perspective.
-
-Kindly review the document and let us know if you have any questions or require further clarification.
-
-Best regards,
-Julio Diaz
+EVALUATE
+SUMMARIZECOLUMNS(
+    // Business_Hierarchy hierarchy
+    Desk[Business Group],
+    Desk[Business Unit],
+    Desk[Business Area],
+    Desk[Sector],
+    Desk[Segment],
+    Desk[Function],
+    Desk[Desk],
+    Desk[Sub-Desk],
+    Desk[Cost Center],
+    Desk[Book],
+    KEEPFILTERS(
+        TREATAS(
+            { latestCob },
+            'CoB Date'[CoB Date]
+        )
+    )
+)
