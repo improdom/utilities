@@ -1,4 +1,35 @@
-"let Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]), Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data], Schema = Database{[Name=\"Databricks_Database\",Kind=\"Schema\"]}[Data], In_memory_vw = Schema{[Name=\"pbi_fact_risk_results_aggregated_vw\",Kind=\"Table\"]}[Data], #\"Filtered Rows\" = Table.SelectRows(In_memory_vw, each ([pbi_partition_id] = 91 and [cob_date_id] = 20250708)) in #\"Filtered Rows\""
-
-
-  "let Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]), hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data], schema = hive_metastore_Database{[Name=\"Databricks_Database\",Kind=\"Schema\"]}[Data], pbi_dim_table = schema{[Name=\"pbi_dim_book_hierarchy_vw\",Kind=\"Table\"]}[Data], #\"Filtered Rows\" = Table.SelectRows(pbi_dim_table, each [business_date] = #date(2025, 07, 18)) in #\"Filtered Rows\""
+{
+  "sequence": {
+    "operations": [
+      {
+        "createOrReplace": {
+          "object": {
+            "database": "ARC_Risk_Model",
+            "table": "pbi_queryspace_trade",
+            "partition": "Trade_2025_07_12"
+          },
+          "partition": {
+            "name": "Trade_2025_07_12",
+            "mode": "DirectQuery",
+            "source": {
+              "type": "m",
+              "expression": "let\n    Source = Databricks.Contents(\"https://<your-databricks-instance>\")\n    in\n        Source"
+            }
+          }
+        }
+      },
+      {
+        "refresh": {
+          "type": "full",
+          "objects": [
+            {
+              "database": "ARC_Risk_Model",
+              "table": "pbi_queryspace_trade",
+              "partition": "Trade_2025_07_12"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
