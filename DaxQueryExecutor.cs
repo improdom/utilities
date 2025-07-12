@@ -1,8 +1,67 @@
-Hi Venkat,
-
-Thank you for summarizing the key points from our discussion. As mentioned earlier, before moving to automatic model flipping, we need to explore the optimizations we can introduce in the current refresh logic. The goal is to process only the data that has actually changed, rather than reprocessing the entire model each time—this is a key contributor to the refresh duration.
-
-I am currently working on a technical assessment to evaluate the feasibility of this approach. I am also reviewing a potential solution for the model flipping, which I will share for feedback if a change in the partition strategy is required.
-
-Thanks,
-Julio Diaz
+{
+  "operations": [
+    {
+      "update": {
+        "object": {
+          "database": "YourDatabaseName",
+          "table": "YourDimensionTable",
+          "partition": "DimPartition_01"
+        },
+        "property": "source",
+        "value": {
+          "query": "SELECT * FROM DimensionTable WHERE id = 2"
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "YourDatabaseName",
+            "table": "YourDimensionTable",
+            "partition": "DimPartition_01"
+          }
+          // Add other dimension partitions here if needed
+        ]
+      }
+    },
+    {
+      "refresh": {
+        "type": "calculate",
+        "objects": [
+          {
+            "database": "YourDatabaseName",
+            "table": "YourDimensionTable"
+          }
+        ]
+      }
+    },
+    {
+      "update": {
+        "object": {
+          "database": "YourDatabaseName",
+          "table": "YourFactTable",
+          "partition": "FactPartition_01"
+        },
+        "property": "source",
+        "value": {
+          "query": "SELECT * FROM FactTable WHERE load_id = 123"
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "YourDatabaseName",
+            "table": "YourFactTable",
+            "partition": "FactPartition_01"
+          }
+          // Add other fact partitions here if needed
+        ]
+      }
+    }
+  ]
+}
