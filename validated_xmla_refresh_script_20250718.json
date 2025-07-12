@@ -1,0 +1,582 @@
+{
+  "operations": [
+    {
+      "alter": {
+        "object": {
+          "database": "ARC Risk Model",
+          "table": "Desk",
+          "partition": "pbi_dim_book_hierarchy_vw_20250709"
+        },
+        "definition": {
+          "source": {
+            "type": "m",
+            "expression": "let\n    Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),\n    hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data],\n    schema = hive_metastore_Database{[Name=\"Databricks Database\",Kind=\"Schema\"]}[Data],\n    pbi_table = schema{[Name=\"pbi_dim_book_hierarchy_vw\",Kind=\"Table\"]}[Data],\n    FilteredRows = Table.SelectRows(pbi_table, each [business_date] = #date(2025, 07, 18))\nin\n    FilteredRows"
+          }
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "Desk",
+            "partition": "pbi_dim_book_hierarchy_vw_20250709"
+          }
+        ]
+      }
+    },
+    {
+      "refresh": {
+        "type": "calculate",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "Desk"
+          }
+        ]
+      }
+    },
+    {
+      "alter": {
+        "object": {
+          "database": "ARC Risk Model",
+          "table": "pbi_fact_risk_results_aggregated_vw",
+          "partition": "pbi_fact_risk_results_aggregated_vw_20250709_1"
+        },
+        "definition": {
+          "source": {
+            "type": "m",
+            "expression": "let\n    Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),\n    hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data],\n    schema = hive_metastore_Database{[Name=\"Databricks Database\",Kind=\"Schema\"]}[Data],\n    pbi_table = schema{[Name=\"pbi_fact_risk_results_aggregated_vw\",Kind=\"Table\"]}[Data],\n    FilteredRows = Table.SelectRows(pbi_table, each [business_date] = #date(2025, 07, 18) and [partition_id] = 1)\nin\n    FilteredRows"
+          }
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "pbi_fact_risk_results_aggregated_vw",
+            "partition": "pbi_fact_risk_results_aggregated_vw_20250709_1"
+          }
+        ]
+      }
+    },
+    {
+      "alter": {
+        "object": {
+          "database": "ARC Risk Model",
+          "table": "pbi_fact_risk_results_aggregated_vw",
+          "partition": "pbi_fact_risk_results_aggregated_vw_20250709_2"
+        },
+        "definition": {
+          "source": {
+            "type": "m",
+            "expression": "let\n    Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),\n    hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data],\n    schema = hive_metastore_Database{[Name=\"Databricks Database\",Kind=\"Schema\"]}[Data],\n    pbi_table = schema{[Name=\"pbi_fact_risk_results_aggregated_vw\",Kind=\"Table\"]}[Data],\n    FilteredRows = Table.SelectRows(pbi_table, each [business_date] = #date(2025, 07, 18) and [partition_id] = 2)\nin\n    FilteredRows"
+          }
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "pbi_fact_risk_results_aggregated_vw",
+            "partition": "pbi_fact_risk_results_aggregated_vw_20250709_2"
+          }
+        ]
+      }
+    },
+    {
+      "alter": {
+        "object": {
+          "database": "ARC Risk Model",
+          "table": "pbi_fact_risk_results_aggregated_vw",
+          "partition": "pbi_fact_risk_results_aggregated_vw_20250709_3"
+        },
+        "definition": {
+          "source": {
+            "type": "m",
+            "expression": "let\n    Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),\n    hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data],\n    schema = hive_metastore_Database{[Name=\"Databricks Database\",Kind=\"Schema\"]}[Data],\n    pbi_table = schema{[Name=\"pbi_fact_risk_results_aggregated_vw\",Kind=\"Table\"]}[Data],\n    FilteredRows = Table.SelectRows(pbi_table, each [business_date] = #date(2025, 07, 18) and [partition_id] = 3)\nin\n    FilteredRows"
+          }
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "pbi_fact_risk_results_aggregated_vw",
+            "partition": "pbi_fact_risk_results_aggregated_vw_20250709_3"
+          }
+        ]
+      }
+    },
+    {
+      "alter": {
+        "object": {
+          "database": "ARC Risk Model",
+          "table": "pbi_fact_risk_results_aggregated_vw",
+          "partition": "pbi_fact_risk_results_aggregated_vw_20250709_4"
+        },
+        "definition": {
+          "source": {
+            "type": "m",
+            "expression": "let\n    Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),\n    hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data],\n    schema = hive_metastore_Database{[Name=\"Databricks Database\",Kind=\"Schema\"]}[Data],\n    pbi_table = schema{[Name=\"pbi_fact_risk_results_aggregated_vw\",Kind=\"Table\"]}[Data],\n    FilteredRows = Table.SelectRows(pbi_table, each [business_date] = #date(2025, 07, 18) and [partition_id] = 4)\nin\n    FilteredRows"
+          }
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "pbi_fact_risk_results_aggregated_vw",
+            "partition": "pbi_fact_risk_results_aggregated_vw_20250709_4"
+          }
+        ]
+      }
+    },
+    {
+      "alter": {
+        "object": {
+          "database": "ARC Risk Model",
+          "table": "pbi_fact_risk_results_aggregated_vw",
+          "partition": "pbi_fact_risk_results_aggregated_vw_20250709_5"
+        },
+        "definition": {
+          "source": {
+            "type": "m",
+            "expression": "let\n    Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),\n    hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data],\n    schema = hive_metastore_Database{[Name=\"Databricks Database\",Kind=\"Schema\"]}[Data],\n    pbi_table = schema{[Name=\"pbi_fact_risk_results_aggregated_vw\",Kind=\"Table\"]}[Data],\n    FilteredRows = Table.SelectRows(pbi_table, each [business_date] = #date(2025, 07, 18) and [partition_id] = 5)\nin\n    FilteredRows"
+          }
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "pbi_fact_risk_results_aggregated_vw",
+            "partition": "pbi_fact_risk_results_aggregated_vw_20250709_5"
+          }
+        ]
+      }
+    },
+    {
+      "alter": {
+        "object": {
+          "database": "ARC Risk Model",
+          "table": "pbi_fact_risk_results_aggregated_vw",
+          "partition": "pbi_fact_risk_results_aggregated_vw_20250709_6"
+        },
+        "definition": {
+          "source": {
+            "type": "m",
+            "expression": "let\n    Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),\n    hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data],\n    schema = hive_metastore_Database{[Name=\"Databricks Database\",Kind=\"Schema\"]}[Data],\n    pbi_table = schema{[Name=\"pbi_fact_risk_results_aggregated_vw\",Kind=\"Table\"]}[Data],\n    FilteredRows = Table.SelectRows(pbi_table, each [business_date] = #date(2025, 07, 18) and [partition_id] = 6)\nin\n    FilteredRows"
+          }
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "pbi_fact_risk_results_aggregated_vw",
+            "partition": "pbi_fact_risk_results_aggregated_vw_20250709_6"
+          }
+        ]
+      }
+    },
+    {
+      "alter": {
+        "object": {
+          "database": "ARC Risk Model",
+          "table": "pbi_fact_risk_results_aggregated_vw",
+          "partition": "pbi_fact_risk_results_aggregated_vw_20250709_7"
+        },
+        "definition": {
+          "source": {
+            "type": "m",
+            "expression": "let\n    Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),\n    hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data],\n    schema = hive_metastore_Database{[Name=\"Databricks Database\",Kind=\"Schema\"]}[Data],\n    pbi_table = schema{[Name=\"pbi_fact_risk_results_aggregated_vw\",Kind=\"Table\"]}[Data],\n    FilteredRows = Table.SelectRows(pbi_table, each [business_date] = #date(2025, 07, 18) and [partition_id] = 7)\nin\n    FilteredRows"
+          }
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "pbi_fact_risk_results_aggregated_vw",
+            "partition": "pbi_fact_risk_results_aggregated_vw_20250709_7"
+          }
+        ]
+      }
+    },
+    {
+      "alter": {
+        "object": {
+          "database": "ARC Risk Model",
+          "table": "pbi_fact_risk_results_aggregated_vw",
+          "partition": "pbi_fact_risk_results_aggregated_vw_20250709_8"
+        },
+        "definition": {
+          "source": {
+            "type": "m",
+            "expression": "let\n    Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),\n    hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data],\n    schema = hive_metastore_Database{[Name=\"Databricks Database\",Kind=\"Schema\"]}[Data],\n    pbi_table = schema{[Name=\"pbi_fact_risk_results_aggregated_vw\",Kind=\"Table\"]}[Data],\n    FilteredRows = Table.SelectRows(pbi_table, each [business_date] = #date(2025, 07, 18) and [partition_id] = 8)\nin\n    FilteredRows"
+          }
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "pbi_fact_risk_results_aggregated_vw",
+            "partition": "pbi_fact_risk_results_aggregated_vw_20250709_8"
+          }
+        ]
+      }
+    },
+    {
+      "alter": {
+        "object": {
+          "database": "ARC Risk Model",
+          "table": "pbi_fact_risk_results_aggregated_vw",
+          "partition": "pbi_fact_risk_results_aggregated_vw_20250709_9"
+        },
+        "definition": {
+          "source": {
+            "type": "m",
+            "expression": "let\n    Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),\n    hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data],\n    schema = hive_metastore_Database{[Name=\"Databricks Database\",Kind=\"Schema\"]}[Data],\n    pbi_table = schema{[Name=\"pbi_fact_risk_results_aggregated_vw\",Kind=\"Table\"]}[Data],\n    FilteredRows = Table.SelectRows(pbi_table, each [business_date] = #date(2025, 07, 18) and [partition_id] = 9)\nin\n    FilteredRows"
+          }
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "pbi_fact_risk_results_aggregated_vw",
+            "partition": "pbi_fact_risk_results_aggregated_vw_20250709_9"
+          }
+        ]
+      }
+    },
+    {
+      "alter": {
+        "object": {
+          "database": "ARC Risk Model",
+          "table": "pbi_fact_risk_results_aggregated_vw",
+          "partition": "pbi_fact_risk_results_aggregated_vw_20250709_10"
+        },
+        "definition": {
+          "source": {
+            "type": "m",
+            "expression": "let\n    Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),\n    hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data],\n    schema = hive_metastore_Database{[Name=\"Databricks Database\",Kind=\"Schema\"]}[Data],\n    pbi_table = schema{[Name=\"pbi_fact_risk_results_aggregated_vw\",Kind=\"Table\"]}[Data],\n    FilteredRows = Table.SelectRows(pbi_table, each [business_date] = #date(2025, 07, 18) and [partition_id] = 10)\nin\n    FilteredRows"
+          }
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "pbi_fact_risk_results_aggregated_vw",
+            "partition": "pbi_fact_risk_results_aggregated_vw_20250709_10"
+          }
+        ]
+      }
+    },
+    {
+      "alter": {
+        "object": {
+          "database": "ARC Risk Model",
+          "table": "pbi_fact_risk_results_aggregated_vw",
+          "partition": "pbi_fact_risk_results_aggregated_vw_20250709_11"
+        },
+        "definition": {
+          "source": {
+            "type": "m",
+            "expression": "let\n    Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),\n    hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data],\n    schema = hive_metastore_Database{[Name=\"Databricks Database\",Kind=\"Schema\"]}[Data],\n    pbi_table = schema{[Name=\"pbi_fact_risk_results_aggregated_vw\",Kind=\"Table\"]}[Data],\n    FilteredRows = Table.SelectRows(pbi_table, each [business_date] = #date(2025, 07, 18) and [partition_id] = 11)\nin\n    FilteredRows"
+          }
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "pbi_fact_risk_results_aggregated_vw",
+            "partition": "pbi_fact_risk_results_aggregated_vw_20250709_11"
+          }
+        ]
+      }
+    },
+    {
+      "alter": {
+        "object": {
+          "database": "ARC Risk Model",
+          "table": "pbi_fact_risk_results_aggregated_vw",
+          "partition": "pbi_fact_risk_results_aggregated_vw_20250709_12"
+        },
+        "definition": {
+          "source": {
+            "type": "m",
+            "expression": "let\n    Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),\n    hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data],\n    schema = hive_metastore_Database{[Name=\"Databricks Database\",Kind=\"Schema\"]}[Data],\n    pbi_table = schema{[Name=\"pbi_fact_risk_results_aggregated_vw\",Kind=\"Table\"]}[Data],\n    FilteredRows = Table.SelectRows(pbi_table, each [business_date] = #date(2025, 07, 18) and [partition_id] = 12)\nin\n    FilteredRows"
+          }
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "pbi_fact_risk_results_aggregated_vw",
+            "partition": "pbi_fact_risk_results_aggregated_vw_20250709_12"
+          }
+        ]
+      }
+    },
+    {
+      "alter": {
+        "object": {
+          "database": "ARC Risk Model",
+          "table": "pbi_fact_risk_results_aggregated_vw",
+          "partition": "pbi_fact_risk_results_aggregated_vw_20250709_13"
+        },
+        "definition": {
+          "source": {
+            "type": "m",
+            "expression": "let\n    Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),\n    hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data],\n    schema = hive_metastore_Database{[Name=\"Databricks Database\",Kind=\"Schema\"]}[Data],\n    pbi_table = schema{[Name=\"pbi_fact_risk_results_aggregated_vw\",Kind=\"Table\"]}[Data],\n    FilteredRows = Table.SelectRows(pbi_table, each [business_date] = #date(2025, 07, 18) and [partition_id] = 13)\nin\n    FilteredRows"
+          }
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "pbi_fact_risk_results_aggregated_vw",
+            "partition": "pbi_fact_risk_results_aggregated_vw_20250709_13"
+          }
+        ]
+      }
+    },
+    {
+      "alter": {
+        "object": {
+          "database": "ARC Risk Model",
+          "table": "pbi_fact_risk_results_aggregated_vw",
+          "partition": "pbi_fact_risk_results_aggregated_vw_20250709_14"
+        },
+        "definition": {
+          "source": {
+            "type": "m",
+            "expression": "let\n    Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),\n    hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data],\n    schema = hive_metastore_Database{[Name=\"Databricks Database\",Kind=\"Schema\"]}[Data],\n    pbi_table = schema{[Name=\"pbi_fact_risk_results_aggregated_vw\",Kind=\"Table\"]}[Data],\n    FilteredRows = Table.SelectRows(pbi_table, each [business_date] = #date(2025, 07, 18) and [partition_id] = 14)\nin\n    FilteredRows"
+          }
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "pbi_fact_risk_results_aggregated_vw",
+            "partition": "pbi_fact_risk_results_aggregated_vw_20250709_14"
+          }
+        ]
+      }
+    },
+    {
+      "alter": {
+        "object": {
+          "database": "ARC Risk Model",
+          "table": "pbi_fact_risk_results_aggregated_vw",
+          "partition": "pbi_fact_risk_results_aggregated_vw_20250709_15"
+        },
+        "definition": {
+          "source": {
+            "type": "m",
+            "expression": "let\n    Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),\n    hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data],\n    schema = hive_metastore_Database{[Name=\"Databricks Database\",Kind=\"Schema\"]}[Data],\n    pbi_table = schema{[Name=\"pbi_fact_risk_results_aggregated_vw\",Kind=\"Table\"]}[Data],\n    FilteredRows = Table.SelectRows(pbi_table, each [business_date] = #date(2025, 07, 18) and [partition_id] = 15)\nin\n    FilteredRows"
+          }
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "pbi_fact_risk_results_aggregated_vw",
+            "partition": "pbi_fact_risk_results_aggregated_vw_20250709_15"
+          }
+        ]
+      }
+    },
+    {
+      "alter": {
+        "object": {
+          "database": "ARC Risk Model",
+          "table": "pbi_fact_risk_results_aggregated_vw",
+          "partition": "pbi_fact_risk_results_aggregated_vw_20250709_16"
+        },
+        "definition": {
+          "source": {
+            "type": "m",
+            "expression": "let\n    Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),\n    hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data],\n    schema = hive_metastore_Database{[Name=\"Databricks Database\",Kind=\"Schema\"]}[Data],\n    pbi_table = schema{[Name=\"pbi_fact_risk_results_aggregated_vw\",Kind=\"Table\"]}[Data],\n    FilteredRows = Table.SelectRows(pbi_table, each [business_date] = #date(2025, 07, 18) and [partition_id] = 16)\nin\n    FilteredRows"
+          }
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "pbi_fact_risk_results_aggregated_vw",
+            "partition": "pbi_fact_risk_results_aggregated_vw_20250709_16"
+          }
+        ]
+      }
+    },
+    {
+      "alter": {
+        "object": {
+          "database": "ARC Risk Model",
+          "table": "pbi_fact_risk_results_aggregated_vw",
+          "partition": "pbi_fact_risk_results_aggregated_vw_20250709_17"
+        },
+        "definition": {
+          "source": {
+            "type": "m",
+            "expression": "let\n    Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),\n    hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data],\n    schema = hive_metastore_Database{[Name=\"Databricks Database\",Kind=\"Schema\"]}[Data],\n    pbi_table = schema{[Name=\"pbi_fact_risk_results_aggregated_vw\",Kind=\"Table\"]}[Data],\n    FilteredRows = Table.SelectRows(pbi_table, each [business_date] = #date(2025, 07, 18) and [partition_id] = 17)\nin\n    FilteredRows"
+          }
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "pbi_fact_risk_results_aggregated_vw",
+            "partition": "pbi_fact_risk_results_aggregated_vw_20250709_17"
+          }
+        ]
+      }
+    },
+    {
+      "alter": {
+        "object": {
+          "database": "ARC Risk Model",
+          "table": "pbi_fact_risk_results_aggregated_vw",
+          "partition": "pbi_fact_risk_results_aggregated_vw_20250709_18"
+        },
+        "definition": {
+          "source": {
+            "type": "m",
+            "expression": "let\n    Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),\n    hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data],\n    schema = hive_metastore_Database{[Name=\"Databricks Database\",Kind=\"Schema\"]}[Data],\n    pbi_table = schema{[Name=\"pbi_fact_risk_results_aggregated_vw\",Kind=\"Table\"]}[Data],\n    FilteredRows = Table.SelectRows(pbi_table, each [business_date] = #date(2025, 07, 18) and [partition_id] = 18)\nin\n    FilteredRows"
+          }
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "pbi_fact_risk_results_aggregated_vw",
+            "partition": "pbi_fact_risk_results_aggregated_vw_20250709_18"
+          }
+        ]
+      }
+    },
+    {
+      "alter": {
+        "object": {
+          "database": "ARC Risk Model",
+          "table": "pbi_fact_risk_results_aggregated_vw",
+          "partition": "pbi_fact_risk_results_aggregated_vw_20250709_19"
+        },
+        "definition": {
+          "source": {
+            "type": "m",
+            "expression": "let\n    Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),\n    hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data],\n    schema = hive_metastore_Database{[Name=\"Databricks Database\",Kind=\"Schema\"]}[Data],\n    pbi_table = schema{[Name=\"pbi_fact_risk_results_aggregated_vw\",Kind=\"Table\"]}[Data],\n    FilteredRows = Table.SelectRows(pbi_table, each [business_date] = #date(2025, 07, 18) and [partition_id] = 19)\nin\n    FilteredRows"
+          }
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "pbi_fact_risk_results_aggregated_vw",
+            "partition": "pbi_fact_risk_results_aggregated_vw_20250709_19"
+          }
+        ]
+      }
+    },
+    {
+      "alter": {
+        "object": {
+          "database": "ARC Risk Model",
+          "table": "pbi_fact_risk_results_aggregated_vw",
+          "partition": "pbi_fact_risk_results_aggregated_vw_20250709_20"
+        },
+        "definition": {
+          "source": {
+            "type": "m",
+            "expression": "let\n    Source = Databricks.Catalogs(Databricks_Instance, Databricks_SQL_Endpoint, [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),\n    hive_metastore_Database = Source{[Name=\"hive_metastore\",Kind=\"Database\"]}[Data],\n    schema = hive_metastore_Database{[Name=\"Databricks Database\",Kind=\"Schema\"]}[Data],\n    pbi_table = schema{[Name=\"pbi_fact_risk_results_aggregated_vw\",Kind=\"Table\"]}[Data],\n    FilteredRows = Table.SelectRows(pbi_table, each [business_date] = #date(2025, 07, 18) and [partition_id] = 20)\nin\n    FilteredRows"
+          }
+        }
+      }
+    },
+    {
+      "refresh": {
+        "type": "dataOnly",
+        "objects": [
+          {
+            "database": "ARC Risk Model",
+            "table": "pbi_fact_risk_results_aggregated_vw",
+            "partition": "pbi_fact_risk_results_aggregated_vw_20250709_20"
+          }
+        ]
+      }
+    }
+  ]
+}
