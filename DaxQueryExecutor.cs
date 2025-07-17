@@ -1,12 +1,96 @@
-Subject: RE: ARC PREPROD ENV: SQL Warehouse Cluster Auto Shutdown Delay
+public class UtcScheduler
+{
+    private readonly Func<CancellationToken, Task> _taskToRun;
+    private readonly DayOfWeek _dayOfWeek;
+    private readonly TimeSpan _timeOfDayUtc;
 
-Hi Nagesh,
+    public UtcScheduler(DayOfWeek dayOfWeek, TimeSpan timeOfDayUtc, Func<CancellationToken, Task> taskToRun)
+    {
+        _dayOfWeek = dayOfWeek;
+        _timeOfDayUtc = timeOfDayUtc;
+        _taskToRun = taskToRun ?? throw new ArgumentNullException(nameof(taskToRun));
+    }
 
-As discussed, setting a shutdown window (even 1 hour or more) is risky, as users may connect to the model at any time. To ensure availability, the cluster will need to run continuously.
+    public async Task RunAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var now = DateTime.UtcNow;
+            var nextRun = GetNextRunTime(now);
+            var delay = nextRun - now;
 
-During our call last week, we also agreed to upgrade the SQL Warehouse cluster to Large size to improve DirectQuery performance for end users. Could you please look into this as well?
+            if (delay.TotalMilliseconds > 0)
+            {
+                await Task.Delay(delay, cancellationToken);
+            }
 
-I’m currently running some validation tests in Excel before delivering the model to users. Please let me know once the changes are complete so I can confirm from Power BI.
+            try
+            {
+                await _taskToRun(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                // Consider logging or rethrowing depending on your needs
+                Console.WriteLine($"Scheduled task error: {ex.Message}");
+            }
+        }
+    }
 
-Thanks,
-Julio Diaz
+    private DateTime GetNextRunTime(DateTime from)
+    {
+        int daysUntil = ((int)_dayOfWeek - (int)from.DayOfWeek + 7) % 7;
+        var next = from.Date.AddDays(daysUntil).Add(_timeOfDayUtc);
+
+        // If the calculated time is already past for today, schedule next week
+        if (next <= from)
+        {
+            next = next.AddDays(7);
+        }
+
+        return next;
+    }
+}
+
+
+
+
+protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+{
+    // Start the scheduler in the background
+    var schedulerTask = new UtcScheduler(
+        dayOfWeek: DayOfWeek.Friday,
+        timeOfDayUtc: new TimeSpan(18, 0, 0),
+        taskToRun: async token =>
+        {
+            _logger.LogInformation("Scheduled task started.");
+            await CallPostgresStoredProcedure();
+        }).RunAsync(stoppingToken);
+
+    // Start your existing loop logic
+    var loopTask = Task.Run(async () =>
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                var startTime = DateTime.UtcNow;
+                var latestVersion = mrvRepo.GetBuilderVersion();
+
+                if (!string.IsNullOrWhiteSpace(latestVersion))
+                {
+                    RunMrvBuilder(mrvEnvironment);
+                    mrvRepo.UpdateMrvVersionControl(latestVersion, start: startTime, end: DateTime.UtcNow);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error executing MRV Builder.");
+            }
+
+            await Task.Delay(1000, stoppingToken);
+        }
+    }, stoppingToken);
+
+    // Wait for both to complete
+    await Task.WhenAll(schedulerTask, loopTask);
+}
