@@ -1,32 +1,8 @@
-Here's a more polished and professional version of your email:
+Yes, we are still following a RISK process for updating MRV definitions based on user inputs. This is a sub-process designed to validate and reconcile the definitions safely. Currently, new MRVs are created in a separate staging model, and we only promote the definitions to the main model after they’ve been verified as correct and stable.
 
----
+At the moment, this staging model is completely decoupled from the main model, which contains important risk data. If an MRV is problematic, we can isolate and correct it without any impact on the main model.
 
-**Subject:** RE: MRV Definitions and Reconciliation Status Update Process
-
-Hi John/Shilpa,
-
-The statuses we’re currently using are inconsistent and don’t clearly reflect the individual steps in the reconciliation workflow. To improve clarity and alignment across teams, I’ve proposed the following updated set of statuses to accurately represent each stage of the process.
-
-Please review and share your thoughts so we can finalize and update accordingly.
-
-| **Status**               | **Description**                                                              |
-| ------------------------ | ---------------------------------------------------------------------------- |
-| `METADATA_COPIED`        | Metadata copied from the on-prem system to the staging environment.          |
-| `MRV_CREATED_STAGING`    | MRV measures created in the Power BI staging model.                          |
-| `RECONCILIATION_PENDING` | Awaiting execution of reconciliation to verify the accuracy of the measures. |
-| `RECONCILED`             | Reconciliation completed successfully; measures passed automated checks.     |
-| `APPROVAL_PENDING`       | Awaiting manual review and approval by the user.                             |
-| `APPROVED`               | User has manually verified and approved the measures.                        |
-| `METADATA_PUBLISHED`     | Approved metadata has been copied to the main environment.                   |
-| `MRV_CREATED_MAIN`       | Final MRV measures created in the main Power BI model.                       |
-| `COMPLETED`              | Entire process completed successfully.                                       |
-
-Let me know if you’d like to discuss this further or propose any changes.
+I’ll schedule a meeting on Monday to walk through these changes in detail.
 
 Thanks,
 Julio Diaz
-
----
-
-Let me know if you'd like a version tailored for slides, documentation, or a stakeholder update.
