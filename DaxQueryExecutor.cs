@@ -1,36 +1,27 @@
-private static HashSet<string> ExtractTableColumns(string dax)
+private static List<string> SplitTopLevelArguments(string input)
 {
-    var outputCols = new HashSet<string>();
+    var result = new List<string>();
+    var current = new StringBuilder();
+    int nested = 0;
 
-    // Matches: 'Table Name'[Column Name] or Table[Column Name]
-    // Handles optional single quotes and ignores DAX functions
-    var columnRegex = new Regex(
-        @"(?<![\w'])\s*'?(?<table>[^\[\]']+)'?\s*\[\s*(?<column>[^\[\]]+)\s*\]",
-        RegexOptions.IgnoreCase | RegexOptions.Multiline);
-
-    foreach (Match match in columnRegex.Matches(dax))
+    foreach (char c in input)
     {
-        var table = match.Groups["table"].Value.Trim();
-        var column = match.Groups["column"].Value.Trim();
+        if (c == '(') nested++;
+        else if (c == ')') nested--;
 
-        if (IsLikelyValidTableName(table))
+        if (c == ',' && nested == 0)
         {
-            outputCols.Add($"{(table.Contains(" ") ? $"'{table}'" : table)}[{column}]");
+            result.Add(current.ToString());
+            current.Clear();
+        }
+        else
+        {
+            current.Append(c);
         }
     }
 
-    return outputCols;
-}
+    if (current.Length > 0)
+        result.Add(current.ToString());
 
-
-private static bool IsLikelyValidTableName(string table)
-{
-    var reservedWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-        "KEEPFILTERS", "TREATAS", "SUMMARIZECOLUMNS", "SELECTCOLUMNS",
-        "FILTER", "CALCULATE", "ADDCOLUMNS", "VALUES", "DISTINCT", "VAR", "RETURN",
-        "NOT", "AND", "OR", "TRUE", "FALSE", "IF"
-    };
-
-    return !reservedWords.Contains(table);
+    return result;
 }
