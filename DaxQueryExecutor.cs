@@ -1,8 +1,23 @@
-Yes, we are still following a RISK process for updating MRV definitions based on user inputs. This is a sub-process designed to validate and reconcile the definitions safely. Currently, new MRVs are created in a separate staging model, and we only promote the definitions to the main model after they’ve been verified as correct and stable.
+private static HashSet<string> ExtractSummarizeColumns(string dax)
+{
+    var outputCols = new HashSet<string>();
+    
+    // Regex to match the full SUMMARIZECOLUMNS(...) block
+    var summarizeRegex = new Regex(@"SUMMARIZECOLUMNS\s*\((.*?)\)", RegexOptions.Singleline | RegexOptions.IgnoreCase);
 
-At the moment, this staging model is completely decoupled from the main model, which contains important risk data. If an MRV is problematic, we can isolate and correct it without any impact on the main model.
+    foreach (Match match in summarizeRegex.Matches(dax))
+    {
+        var args = match.Groups[1].Value;
 
-I’ll schedule a meeting on Monday to walk through these changes in detail.
+        // Updated regex to match 'Table'[Column] or Table[Column]
+        var columnRegex = new Regex(@"'?(?<table>[^\[\]']+)'?\[(?<column>[^\[\]]+)\]", RegexOptions.IgnoreCase);
 
-Thanks,
-Julio Diaz
+        foreach (Match col in columnRegex.Matches(args))
+        {
+            // Optionally use only col.Value or concatenate table and column
+            outputCols.Add(col.Value);  // or $"{col.Groups["table"].Value}[{col.Groups["column"].Value}]"
+        }
+    }
+
+    return outputCols;
+}
