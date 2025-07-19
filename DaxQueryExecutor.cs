@@ -1,15 +1,36 @@
-private static HashSet<string> ExtractMeasures(string dax)
+private static HashSet<string> ExtractTableColumns(string dax)
 {
-    var measures = new HashSet<string>();
+    var outputCols = new HashSet<string>();
 
-    // Match [Measure Name] not preceded by a table name (like Table[Column])
-    var measureRegex = new Regex(@"(?<!['\w\]]\s*)\[(?<measure>[^\[\]]+)\]", RegexOptions.IgnoreCase);
+    // Matches: 'Table Name'[Column Name] or Table[Column Name]
+    // Handles optional single quotes and ignores DAX functions
+    var columnRegex = new Regex(
+        @"(?<![\w'])\s*'?(?<table>[^\[\]']+)'?\s*\[\s*(?<column>[^\[\]]+)\s*\]",
+        RegexOptions.IgnoreCase | RegexOptions.Multiline);
 
-    foreach (Match match in measureRegex.Matches(dax))
+    foreach (Match match in columnRegex.Matches(dax))
     {
-        var measureName = match.Groups["measure"].Value.Trim();
-        measures.Add(measureName);
+        var table = match.Groups["table"].Value.Trim();
+        var column = match.Groups["column"].Value.Trim();
+
+        if (IsLikelyValidTableName(table))
+        {
+            outputCols.Add($"{(table.Contains(" ") ? $"'{table}'" : table)}[{column}]");
+        }
     }
 
-    return measures;
+    return outputCols;
+}
+
+
+private static bool IsLikelyValidTableName(string table)
+{
+    var reservedWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "KEEPFILTERS", "TREATAS", "SUMMARIZECOLUMNS", "SELECTCOLUMNS",
+        "FILTER", "CALCULATE", "ADDCOLUMNS", "VALUES", "DISTINCT", "VAR", "RETURN",
+        "NOT", "AND", "OR", "TRUE", "FALSE", "IF"
+    };
+
+    return !reservedWords.Contains(table);
 }
