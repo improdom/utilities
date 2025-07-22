@@ -1,3 +1,28 @@
+
+public class IgnoreEmptyEnumerableConverter<T> : JsonConverter<IEnumerable<T>>
+{
+    public override IEnumerable<T>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        => JsonSerializer.Deserialize<IEnumerable<T>>(ref reader, options);
+
+    public override void Write(Utf8JsonWriter writer, IEnumerable<T> value, JsonSerializerOptions options)
+    {
+        if (value?.Any() == true)
+        {
+            JsonSerializer.Serialize(writer, value, options);
+        }
+    }
+}
+
+
+
+
+
+private static HashSet<string> ExtractSummarizeColumnsOnly(string dax)
+{
+    var outp
+
+
+
 private static HashSet<string> ExtractSummarizeColumnsOnly(string dax)
 {
     var outputCols = new HashSet<string>();
