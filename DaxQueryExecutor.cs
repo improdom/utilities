@@ -1,34 +1,13 @@
-var existingQuerySpace = await retentionSqlDbContext.QuerySpaces
-    .FirstOrDefaultAsync(q => q.Name == querySpaceName);
+var databricksClient = DatabricksClient.CreateClient(new Uri("https://<your-instance>.azuredatabricks.net"), "<your-token>");
+var service = new DatabricksWarehouseService(databricksClient);
 
-QuerySpaceExecutionStatus? existingQueryStatus = null;
+string? warehouseId = await service.GetWarehouseIdByNameAsync("My Warehouse");
 
-if (existingQuerySpace != null)
+if (warehouseId != null)
 {
-    existingQueryStatus = await retentionSqlDbContext.QuerySpaceExecutionStatuses
-        .FirstOrDefaultAsync(x =>
-            x.QuerySpaceId == existingQuerySpace.Id &&
-            x.CoBDate == coBDate.Date);
-}
-
-if (existingQueryStatus == null)
-{
-    retentionSqlDbContext.QuerySpaceExecutionStatuses.Add(new QuerySpaceExecutionStatus
-    {
-        QuerySpaceId = existingQuerySpace.Id,
-        CoBDate = coBDate.Date,
-        Status = executionStatus.ToString(),
-        CreatedAt = DateTime.UtcNow,
-        LastUpdated = DateTime.UtcNow,
-        ReadyEventPublished = readyEventRaised
-    });
+    Console.WriteLine($"Warehouse ID: {warehouseId}");
 }
 else
 {
-    existingQueryStatus.CoBDate = coBDate;
-    existingQueryStatus.Status = executionStatus.ToString();
-    existingQueryStatus.LastUpdated = DateTime.UtcNow;
-    existingQueryStatus.ReadyEventPublished = readyEventRaised;
+    Console.WriteLine("Warehouse not found.");
 }
-
-await retentionSqlDbContext.SaveChangesAsync();
