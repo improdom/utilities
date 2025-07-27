@@ -75,35 +75,20 @@ private static HashSet<string> ExtractMeasures(string dax)
 {
     var measures = new HashSet<string>();
 
-    // Match everything in brackets: [MeasureName]
-    var bracketRegex = new Regex(@"\[(?<name>[^\[\]]+)\]", RegexOptions.IgnoreCase);
-    var matches = bracketRegex.Matches(dax);
+    // This regex matches [MeasureName] that is NOT preceded by either:
+    // - a quote and word: 'Some Table'[
+    // - an unquoted word: SomeTable[
+    // The lookbehind is fixed-width due to .NET limitations
+    var regex = new Regex(@"(?<!['\w]{1,30}\s*\[)\[(?<measure>[^\[\]]+)\]", RegexOptions.IgnoreCase);
 
-    foreach (Match match in matches)
+    foreach (Match match in regex.Matches(dax))
     {
-        var index = match.Index;
-        var measureCandidate = match.Groups["name"].Value.Trim();
-
-        // Look behind the current match up to 100 characters
-        var lookBehind = dax.Substring(0, index);
-        var lastQuote = lookBehind.LastIndexOf('\'');
-        var lastBracket = lookBehind.LastIndexOf('[');
-
-        // Check if there's a closing quote and opening bracket right before this one (i.e., 'Table'[Column])
-        bool isQuotedTableColumn = lastQuote != -1 && lastBracket > lastQuote;
-
-        // Check if pattern is like TableName[ColumnName]
-        var tablePattern = new Regex(@"[A-Za-z0-9_]+(\s*)\[\s*$");
-        bool isUnquotedTableColumn = tablePattern.IsMatch(lookBehind.Substring(Math.Max(0, lookBehind.Length - 50)));
-
-        // If it's not part of a column reference, it's a measure
-        if (!isQuotedTableColumn && !isUnquotedTableColumn)
-        {
-            measures.Add(measureCandidate);
-        }
+        var measureName = match.Groups["measure"].Value.Trim();
+        measures.Add(measureName);
     }
 
     return measures;
 }
+
 
 
