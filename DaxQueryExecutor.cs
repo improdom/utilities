@@ -59,4 +59,12 @@ public static class AesUtility
             }
         }
     }
+
+    SELECT
+  business_date,
+  query_name,
+  attribute_map,
+  measure_map,
+  concat_ws(',', map_keys(attribute_map), map_keys(measure_map)) AS used_attributes
+FROM pbi_fact_risk_results_trend
 }
