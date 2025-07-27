@@ -71,33 +71,39 @@ FROM pbi_fact_risk_results_trend
 
 
 
-
 private static HashSet<string> ExtractMeasures(string dax)
 {
     var measures = new HashSet<string>();
 
-    // Match all [Something] expressions
-    var allBracketsRegex = new Regex(@"\[(?<name>[^\[\]]+)\]", RegexOptions.IgnoreCase);
-    var matches = allBracketsRegex.Matches(dax);
+    // Match everything in brackets: [MeasureName]
+    var bracketRegex = new Regex(@"\[(?<name>[^\[\]]+)\]", RegexOptions.IgnoreCase);
+    var matches = bracketRegex.Matches(dax);
 
     foreach (Match match in matches)
     {
         var index = match.Index;
-        var name = match.Groups["name"].Value.Trim();
+        var measureCandidate = match.Groups["name"].Value.Trim();
 
-        // Look behind up to 100 characters for possible table reference
-        var prefixLength = Math.Min(100, index);
-        var context = dax.Substring(Math.Max(0, index - prefixLength), prefixLength);
+        // Look behind the current match up to 100 characters
+        var lookBehind = dax.Substring(0, index);
+        var lastQuote = lookBehind.LastIndexOf('\'');
+        var lastBracket = lookBehind.LastIndexOf('[');
 
-        // Skip if the match is part of a column reference like 'Table'[Column] or Table[Column]
-        if (Regex.IsMatch(context, @"(['\w]+\s*)\[\s*$"))
+        // Check if there's a closing quote and opening bracket right before this one (i.e., 'Table'[Column])
+        bool isQuotedTableColumn = lastQuote != -1 && lastBracket > lastQuote;
+
+        // Check if pattern is like TableName[ColumnName]
+        var tablePattern = new Regex(@"[A-Za-z0-9_]+(\s*)\[\s*$");
+        bool isUnquotedTableColumn = tablePattern.IsMatch(lookBehind.Substring(Math.Max(0, lookBehind.Length - 50)));
+
+        // If it's not part of a column reference, it's a measure
+        if (!isQuotedTableColumn && !isUnquotedTableColumn)
         {
-            continue; // It's a column reference, not a standalone measure
+            measures.Add(measureCandidate);
         }
-
-        measures.Add(name);
     }
 
     return measures;
 }
+
 
