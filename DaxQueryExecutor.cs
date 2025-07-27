@@ -68,3 +68,39 @@ public static class AesUtility
   concat_ws(',', map_keys(attribute_map), map_keys(measure_map)) AS used_attributes
 FROM pbi_fact_risk_results_trend
 }
+
+
+
+
+private static HashSet<string> ExtractMeasures(string dax)
+{
+    var measures = new HashSet<string>();
+
+    // Match all [Something] references
+    var allBracketsRegex = new Regex(@"\[(?<name>[^\[\]]+)\]", RegexOptions.IgnoreCase);
+    var matches = allBracketsRegex.Matches(dax);
+
+    foreach (Match match in matches)
+    {
+        var index = match.Index;
+        var name = match.Groups["name"].Value.Trim();
+
+        // Get the text before this match
+        var prefix = dax.Substring(0, index);
+
+        // Try to get up to 50 characters before the match (safe length)
+        var context = prefix.Length > 50 ? prefix.Substring(prefix.Length - 50) : prefix;
+
+        // Check if the pattern ends with something like TableName[ 
+        // (i.e., exclude Table[Column] references)
+        bool isTableQualified = Regex.IsMatch(context, @"\b\w+\s*\[\s*$");
+
+        if (!isTableQualified)
+        {
+            measures.Add(name);
+        }
+    }
+
+    return measures;
+}
+
