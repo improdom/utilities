@@ -76,7 +76,7 @@ private static HashSet<string> ExtractMeasures(string dax)
 {
     var measures = new HashSet<string>();
 
-    // Match all [Something] references
+    // Match all [Something] expressions
     var allBracketsRegex = new Regex(@"\[(?<name>[^\[\]]+)\]", RegexOptions.IgnoreCase);
     var matches = allBracketsRegex.Matches(dax);
 
@@ -85,20 +85,17 @@ private static HashSet<string> ExtractMeasures(string dax)
         var index = match.Index;
         var name = match.Groups["name"].Value.Trim();
 
-        // Get the text before this match
-        var prefix = dax.Substring(0, index);
+        // Look behind up to 100 characters for possible table reference
+        var prefixLength = Math.Min(100, index);
+        var context = dax.Substring(Math.Max(0, index - prefixLength), prefixLength);
 
-        // Try to get up to 50 characters before the match (safe length)
-        var context = prefix.Length > 50 ? prefix.Substring(prefix.Length - 50) : prefix;
-
-        // Check if the pattern ends with something like TableName[ 
-        // (i.e., exclude Table[Column] references)
-        bool isTableQualified = Regex.IsMatch(context, @"\b\w+\s*\[\s*$");
-
-        if (!isTableQualified)
+        // Skip if the match is part of a column reference like 'Table'[Column] or Table[Column]
+        if (Regex.IsMatch(context, @"(['\w]+\s*)\[\s*$"))
         {
-            measures.Add(name);
+            continue; // It's a column reference, not a standalone measure
         }
+
+        measures.Add(name);
     }
 
     return measures;
