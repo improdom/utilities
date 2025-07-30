@@ -53,4 +53,25 @@ foreach ($file in $allFiles) {
                     FilePath        = $path
                     ProductName     = $fvi.ProductName
                     FileVersion     = $fvi.FileVersion
-                    TargetFrame
+                    TargetFramework = "net5.0"
+                })
+            }
+        } catch {}
+
+        $refCounter.Value++
+    }).AddArgument($file).AddArgument($results).AddArgument($counter)
+    $runspace.RunspacePool = $runspacePool
+    $null = $runspace.BeginInvoke()
+    $runspaces += $runspace
+}
+
+# Wait for all threads to complete
+$runspaces | ForEach-Object { $_.EndInvoke($_.BeginInvoke()) }
+
+# Cleanup progress bar
+Stop-Job $progressJob | Out-Null
+Remove-Job $progressJob | Out-Null
+
+# Export results
+$results | Export-Csv -Path $outputCsv -NoTypeInformation -Encoding UTF8
+Write-Host "`n✅ Scan complete. Results saved to $outputCsv"
