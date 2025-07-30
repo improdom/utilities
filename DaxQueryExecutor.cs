@@ -1,20 +1,25 @@
 Add-Type -AssemblyName System.Collections.Concurrent
 
-$scanPath = "C:\YourAppFolder"  # 🔁 Replace this with the folder to scan
+$scanPath = "C:\YourAppFolder"   # 🔁 Change this
 $outputCsv = "C:\temp\dotnet5_usage_report.csv"
 $results = [System.Collections.Concurrent.ConcurrentBag[object]]::new()
 
 Write-Host "🔍 Collecting files..."
-$allFiles = Get-ChildItem -Path $scanPath -Recurse -ErrorAction SilentlyContinue |
+$allFiles = Get-ChildItem -Path $scanPath -Recurse -File -ErrorAction SilentlyContinue |
     Where-Object { ($_.Extension -eq ".dll" -or $_.Extension -eq ".exe") -and $_.FullName.Length -lt 260 }
 
-$totalFiles = $allFiles.Count
-$counter = 0
+# Force PowerShell to use correct ForEach overload by casting the list
+$typedFiles = [System.Collections.Generic.List[object]]::new()
+$allFiles | ForEach-Object { $typedFiles.Add($_) }
+
+$totalFiles = $typedFiles.Count
+$script:counter = 0
 
 Write-Host "⚙️ Scanning $totalFiles files for .NET 5.0 references..."
 
-[System.Threading.Tasks.Parallel]::ForEach($allFiles, [Action[object]]{
+[System.Threading.Tasks.Parallel]::ForEach($typedFiles, [Action[object]]{
     param ($file)
+
     try {
         $path = $file.FullName
         $bytes = [System.IO.File]::ReadAllBytes($path)
@@ -32,11 +37,10 @@ Write-Host "⚙️ Scanning $totalFiles files for .NET 5.0 references..."
         }
     } catch { }
 
-    # Update progress bar
-    $script:counter = [System.Threading.Interlocked]::Increment([ref]$script:counter)
-    if ($script:counter % 50 -eq 0 -or $script:counter -eq $totalFiles) {
-        $percent = [Math]::Round(($script:counter / $totalFiles) * 100, 2)
-        Write-Progress -Activity "Scanning .NET assemblies" -Status "$script:counter of $totalFiles scanned..." -PercentComplete $percent
+    $current = [System.Threading.Interlocked]::Increment([ref]$script:counter)
+    if ($current % 50 -eq 0 -or $current -eq $totalFiles) {
+        $percent = [Math]::Round(($current / $totalFiles) * 100, 2)
+        Write-Progress -Activity "Scanning .NET assemblies" -Status "$current of $totalFiles scanned..." -PercentComplete $percent
     }
 })
 
