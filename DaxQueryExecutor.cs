@@ -1,42 +1,38 @@
-# Define the root path to scan (update if needed)
+# Requires PowerShell 7 or later
 $scanPath = "C:\"
-
-# Output CSV path
 $outputCsv = "C:\dotnet5_usage_report.csv"
 
-# Create a list to store results
-$results = @()
+# Collect all .dll and .exe files first
+$files = Get-ChildItem -Path $scanPath -Recurse -Include *.dll, *.exe -File -ErrorAction SilentlyContinue
 
-# Get all .dll and .exe files under the path
-Get-ChildItem -Path $scanPath -Recurse -Include *.dll, *.exe -ErrorAction SilentlyContinue | ForEach-Object {
+# Thread-safe result collection
+$results = [System.Collections.Concurrent.ConcurrentBag[object]]::new()
+
+$files | ForEach-Object -Parallel {
+    param ($file, $bag)
+
     try {
-        $assemblyPath = $_.FullName
+        $path = $file.FullName
+        $fvi = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($path)
 
-        # Load the assembly metadata (without executing it)
-        $assembly = [System.Reflection.AssemblyName]::GetAssemblyName($assemblyPath)
-
-        # Read custom attributes from the assembly
-        $peReader = [System.Reflection.Metadata.MetadataReaderProvider]::FromPortablePdbFile($assemblyPath)
-        $reader = $peReader.GetMetadataReader()
+        # Check if file contains net5.0 string (indicates target framework)
+        $bytes = [System.IO.File]::ReadAllBytes($path)
+        $text = [System.Text.Encoding]::ASCII.GetString($bytes)
         
-    } catch {
-        # Fallback to use System.Diagnostics.FileVersionInfo
-        $fvi = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($assemblyPath)
-
-        # Read the raw file for the TargetFrameworkAttribute
-        $rawText = [System.IO.File]::ReadAllText($assemblyPath) -replace "`0", ""
-        if ($rawText -match "net5.0") {
-            $results += [PSCustomObject]@{
-                FilePath     = $assemblyPath
-                ProductName  = $fvi.ProductName
-                FileVersion  = $fvi.FileVersion
+        if ($text -match "net5.0") {
+            $bag.Add([PSCustomObject]@{
+                FilePath        = $path
+                ProductName     = $fvi.ProductName
+                FileVersion     = $fvi.FileVersion
                 TargetFramework = "net5.0"
-            }
+            })
         }
+    } catch {
+        # Ignore unreadable files
     }
-}
+} -ArgumentList $_, $results -ThrottleLimit 8
 
-# Export results
+# Export result
 $results | Export-Csv -Path $outputCsv -NoTypeInformation -Encoding UTF8
 
 Write-Host "Scan complete. Results saved to $outputCsv"
