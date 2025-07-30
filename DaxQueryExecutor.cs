@@ -1,20 +1,27 @@
 Add-Type -AssemblyName System.Collections.Concurrent
 
-$scanPath = "C:\YourAppFolder"  # ✅ CHANGE this to your folder
+$scanPath = "C:\"   # 🔁 Scan everything under C:\ except C:\Users
+$excludePath = "C:\\Users"
 $outputCsv = "C:\temp\dotnet5_usage_report.csv"
 $results = New-Object System.Collections.Concurrent.ConcurrentBag[psobject]
 
-# Use a thread-safe counter object
+# Thread-safe counter
 $counter = New-Object -TypeName PSObject -Property @{ Value = 0 }
 
-Write-Host "`n🔍 Collecting .dll and .exe files under $scanPath..."
-$allFiles = Get-ChildItem -Path $scanPath -Recurse -ErrorAction SilentlyContinue |
-    Where-Object { ($_.Extension -eq ".dll" -or $_.Extension -eq ".exe") -and $_.FullName.Length -lt 260 }
+Write-Host "`n🔍 Collecting .dll and .exe files under $scanPath (excluding $excludePath)..."
+
+# Get all .dll and .exe files, excluding those inside C:\Users
+$allFiles = Get-ChildItem -Path $scanPath -Recurse -File -ErrorAction SilentlyContinue |
+    Where-Object {
+        ($_.Extension -eq ".dll" -or $_.Extension -eq ".exe") -and
+        $_.FullName.Length -lt 260 -and
+        ($_.FullName -notlike "$excludePath*")
+    }
 
 $totalFiles = $allFiles.Count
 Write-Host "⚙️ Found $totalFiles files to scan."
 
-# Start progress in background job (for UI)
+# Start a background job to show progress bar
 $progressJob = Start-Job -ScriptBlock {
     param($total, $refCounter)
     do {
@@ -26,7 +33,7 @@ $progressJob = Start-Job -ScriptBlock {
     Write-Progress -Activity "Scanning for .NET 5.0" -Completed
 } -ArgumentList $totalFiles, $counter
 
-# Manually parallelize using Runspaces
+# Use runspaces for multithreading
 $runspacePool = [runspacefactory]::CreateRunspacePool(1, 6)
 $runspacePool.Open()
 $runspaces = @()
@@ -46,25 +53,4 @@ foreach ($file in $allFiles) {
                     FilePath        = $path
                     ProductName     = $fvi.ProductName
                     FileVersion     = $fvi.FileVersion
-                    TargetFramework = "net5.0"
-                })
-            }
-        } catch {}
-
-        $refCounter.Value++
-    }).AddArgument($file).AddArgument($results).AddArgument($counter)
-    $runspace.RunspacePool = $runspacePool
-    $null = $runspace.BeginInvoke()
-    $runspaces += $runspace
-}
-
-# Wait for all to finish
-$runspaces | ForEach-Object { $_.EndInvoke($_.BeginInvoke()) }
-
-# Cleanup progress job
-Stop-Job $progressJob | Out-Null
-Remove-Job $progressJob | Out-Null
-
-# Export results
-$results | Export-Csv -Path $outputCsv -NoTypeInformation -Encoding UTF8
-Write-Host "`n✅ Scan complete. Results saved to $outputCsv"
+                    TargetFrame
