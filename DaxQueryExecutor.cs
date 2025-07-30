@@ -1,26 +1,33 @@
-# Requires PowerShell 7 or later
-$scanPath = "C:\"
-$outputCsv = "C:\dotnet5_usage_report.csv"
+Add-Type -AssemblyName System.Collections.Concurrent
 
-# Collect all .dll and .exe files first
-$files = Get-ChildItem -Path $scanPath -Recurse -Include *.dll, *.exe -File -ErrorAction SilentlyContinue
-
-# Thread-safe result collection
+$scanPath = "C:\YourAppFolder"   # 🔁 Replace with your actual folder
+$outputCsv = "C:\temp\dotnet5_usage_report.csv"
 $results = [System.Collections.Concurrent.ConcurrentBag[object]]::new()
 
-$files | ForEach-Object -Parallel {
-    param ($file, $bag)
+# Safely collect all .dll and .exe files with paths under 260 characters
+Write-Host "🔍 Collecting files..."
+$allFiles = Get-ChildItem -Path $scanPath -Recurse -Include *.dll, *.exe -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName.Length -lt 260 }
+
+$totalFiles = $allFiles.Count
+$counter = [System.Threading.Interlocked]::New(0)
+
+Write-Host "⚙️ Scanning $totalFiles files for .NET 5.0 references..."
+
+[System.Threading.Tasks.Parallel]::ForEach($allFiles, {
+    param ($file)
 
     try {
         $path = $file.FullName
-        $fvi = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($path)
 
-        # Check if file contains net5.0 string (indicates target framework)
+        # Read only first 4KB of bytes for speed
         $bytes = [System.IO.File]::ReadAllBytes($path)
-        $text = [System.Text.Encoding]::ASCII.GetString($bytes)
-        
+        $maxRead = [Math]::Min(4096, $bytes.Length)
+        $text = [System.Text.Encoding]::ASCII.GetString($bytes[0..($maxRead - 1)])
+
         if ($text -match "net5.0") {
-            $bag.Add([PSCustomObject]@{
+            $fvi = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($path)
+            $results.Add([PSCustomObject]@{
                 FilePath        = $path
                 ProductName     = $fvi.ProductName
                 FileVersion     = $fvi.FileVersion
@@ -28,11 +35,19 @@ $files | ForEach-Object -Parallel {
             })
         }
     } catch {
-        # Ignore unreadable files
+        # skip unreadable files
     }
-} -ArgumentList $_, $results -ThrottleLimit 8
 
-# Export result
+    # Progress tracking
+    $current = [System.Threading.Interlocked]::Increment([ref]$counter)
+    if ($current % 50 -eq 0 -or $current -eq $totalFiles) {
+        $percent = [Math]::Round(($current / $totalFiles) * 100, 2)
+        Write-Progress -Activity "Scanning .NET assemblies" -Status "$current of $totalFiles scanned..." -PercentComplete $percent
+    }
+})
+
+Write-Progress -Activity "Scanning .NET assemblies" -Completed -Status "Done"
+
+# Export results
 $results | Export-Csv -Path $outputCsv -NoTypeInformation -Encoding UTF8
-
-Write-Host "Scan complete. Results saved to $outputCsv"
+Write-Host "`n✅ Scan complete. Results saved to $outputCsv"
