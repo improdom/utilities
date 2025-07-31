@@ -1,77 +1,30 @@
-Add-Type -AssemblyName System.Collections.Concurrent
+Subject: Task: Implement Power BI Load Balancer Data Model in Refresh Service
 
-$scanPath = "C:\"   # 🔁 Scan everything under C:\ except C:\Users
-$excludePath = "C:\\Users"
-$outputCsv = "C:\temp\dotnet5_usage_report.csv"
-$results = New-Object System.Collections.Concurrent.ConcurrentBag[psobject]
+Hi Apurva,
 
-# Thread-safe counter
-$counter = New-Object -TypeName PSObject -Property @{ Value = 0 }
+Please find attached the data model design document for the Power BI Load Balancer functionality (PowerBI_LoadBalancer_ModelDesign.docx).
 
-Write-Host "`n🔍 Collecting .dll and .exe files under $scanPath (excluding $excludePath)..."
+Kindly work on the following tasks based on this design:
 
-# Get all .dll and .exe files, excluding those inside C:\Users
-$allFiles = Get-ChildItem -Path $scanPath -Recurse -File -ErrorAction SilentlyContinue |
-    Where-Object {
-        ($_.Extension -eq ".dll" -or $_.Extension -eq ".exe") -and
-        $_.FullName.Length -lt 260 -and
-        ($_.FullName -notlike "$excludePath*")
-    }
+✅ Tasks
+1. Create the following tables in PostgreSQL:
 
-$totalFiles = $allFiles.Count
-Write-Host "⚙️ Found $totalFiles files to scan."
+worker_model
 
-# Start a background job to show progress bar
-$progressJob = Start-Job -ScriptBlock {
-    param($total, $refCounter)
-    do {
-        Start-Sleep -Milliseconds 500
-        $count = $refCounter.Value
-        $percent = [math]::Round(($count / $total) * 100, 2)
-        Write-Progress -Activity "Scanning for .NET 5.0" -Status "$count of $total files scanned..." -PercentComplete $percent
-    } while ($count -lt $total)
-    Write-Progress -Activity "Scanning for .NET 5.0" -Completed
-} -ArgumentList $totalFiles, $counter
+model_state
 
-# Use runspaces for multithreading
-$runspacePool = [runspacefactory]::CreateRunspacePool(1, 6)
-$runspacePool.Open()
-$runspaces = @()
+model_role_history
 
-foreach ($file in $allFiles) {
-    $runspace = [powershell]::Create().AddScript({
-        param($file, $resultsBag, $refCounter)
-        try {
-            $path = $file.FullName
-            $bytes = [System.IO.File]::ReadAllBytes($path)
-            $maxRead = [Math]::Min(4096, $bytes.Length)
-            $text = [System.Text.Encoding]::ASCII.GetString($bytes[0..($maxRead - 1)])
+model_refresh_log
 
-            if ($text -match "net5.0") {
-                $fvi = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($path)
-                $resultsBag.Add([pscustomobject]@{
-                    FilePath        = $path
-                    ProductName     = $fvi.ProductName
-                    FileVersion     = $fvi.FileVersion
-                    TargetFramework = "net5.0"
-                })
-            }
-        } catch {}
+Refer to the column types and constraints in the attached document.
 
-        $refCounter.Value++
-    }).AddArgument($file).AddArgument($results).AddArgument($counter)
-    $runspace.RunspacePool = $runspacePool
-    $null = $runspace.BeginInvoke()
-    $runspaces += $runspace
-}
+2. Update the Power BI Refresh Service to support the new model:
+a) Create Entity classes for each of the above tables
+b) Update the DbContext class to configure these entities
+c) Create a Repository class that implements the necessary CRUD operations for each entity
 
-# Wait for all threads to complete
-$runspaces | ForEach-Object { $_.EndInvoke($_.BeginInvoke()) }
+Let me know once the implementation is complete or if you run into any questions.
 
-# Cleanup progress bar
-Stop-Job $progressJob | Out-Null
-Remove-Job $progressJob | Out-Null
-
-# Export results
-$results | Export-Csv -Path $outputCsv -NoTypeInformation -Encoding UTF8
-Write-Host "`n✅ Scan complete. Results saved to $outputCsv"
+Thanks,
+Julio
