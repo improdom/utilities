@@ -1,12 +1,21 @@
-// ⏰ Scheduled Task Check
-            var now = DateTime.UtcNow;
-            var isScheduledDay = now.DayOfWeek == scheduledDay;
-            var isScheduledTime = now.TimeOfDay >= scheduledTime;
-            var hasNotRunYet = lastScheduledRun == null || lastScheduledRun.Value.Date != now.Date;
+private async Task<bool> ShouldRunWeekdayModelPurgeAsync()
+{
+    var now = DateTime.UtcNow;
+    var scheduledTime = new TimeSpan(6, 0, 0); // Only after 6 AM UTC
 
-            if (isScheduledDay && isScheduledTime && hasNotRunYet)
-            {
-                _logger.LogInformation("Running scheduled Postgres task...");
-                await CallPostgresStoredProcedure();
-                lastScheduledRun = now;
-            }
+    // ✅ Skip weekends
+    if (now.DayOfWeek == DayOfWeek.Saturday || now.DayOfWeek == DayOfWeek.Sunday)
+        return false;
+
+    // ✅ Ensure it's *after* the scheduled time (not exactly equal)
+    if (now.TimeOfDay < scheduledTime)
+        return false;
+
+    // ✅ Get current writer model
+    var state = await modelRepo.GetCurrentModelStateAsync();
+    var writerModel = await modelRepo.GetModelByIdAsync(state.WriterModelId);
+
+    // ✅ Only run if it hasn't already run today
+    var hasNotRunYet = writerModel.PurgedAt == null || writerModel.PurgedAt.Value.Date != now.Date;
+    return hasNotRunYet;
+}
