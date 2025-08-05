@@ -1,16 +1,28 @@
-Here’s a professionally improved version of the email shown in your screenshot:
+I hope you're doing well.
 
----
+Could you please assign Premium capacity to the following Power BI workspaces?
 
-**Subject:** RE: ARC-PBI Strategic Data Model
+wsA
 
-Hi Venkat K,
+wsB
 
-The file provided by Ankush contains the complete log file, which my script is currently unable to parse. Amar mentioned that you had loaded the logs into a table—would it be possible to extract only the DAX queries from there? That way, I can parse them and generate the list of attributes.
+These workspaces require Premium features to support advanced semantic model deployment scenarios, including models configured with DefaultPowerBIDataSourceVersion = PowerBI_V3.
 
-Thanks,
-Julio Díaz
+Additionally, assigning Premium capacity will enable the Large dataset storage format, which is essential for our models due to their size and complexity. This will allow us to take advantage of key features such as:
 
----
+Support for datasets larger than 1 GB
 
-Let me know if you want the tone to be more formal or more casual, or if you want to add a follow-up or clarification.
+XMLA read/write endpoints
+
+Incremental refresh
+
+Enhanced metadata
+
+Hybrid tables
+
+Please let me know if you need any further information.
+
+Thank you for your support.
+
+Best regards,
+Julio Diaz
