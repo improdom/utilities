@@ -1,21 +1,16 @@
-private async Task<bool> ShouldRunWeekdayModelPurgeAsync()
-{
-    var now = DateTime.UtcNow;
-    var scheduledTime = new TimeSpan(6, 0, 0); // Only after 6 AM UTC
+Here’s a professionally improved version of the email shown in your screenshot:
 
-    // ✅ Skip weekends
-    if (now.DayOfWeek == DayOfWeek.Saturday || now.DayOfWeek == DayOfWeek.Sunday)
-        return false;
+---
 
-    // ✅ Ensure it's *after* the scheduled time (not exactly equal)
-    if (now.TimeOfDay < scheduledTime)
-        return false;
+**Subject:** RE: ARC-PBI Strategic Data Model
 
-    // ✅ Get current writer model
-    var state = await modelRepo.GetCurrentModelStateAsync();
-    var writerModel = await modelRepo.GetModelByIdAsync(state.WriterModelId);
+Hi Venkat K,
 
-    // ✅ Only run if it hasn't already run today
-    var hasNotRunYet = writerModel.PurgedAt == null || writerModel.PurgedAt.Value.Date != now.Date;
-    return hasNotRunYet;
-}
+The file provided by Ankush contains the complete log file, which my script is currently unable to parse. Amar mentioned that you had loaded the logs into a table—would it be possible to extract only the DAX queries from there? That way, I can parse them and generate the list of attributes.
+
+Thanks,
+Julio Díaz
+
+---
+
+Let me know if you want the tone to be more formal or more casual, or if you want to add a follow-up or clarification.
