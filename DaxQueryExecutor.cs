@@ -1,25 +1,4 @@
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-
-namespace YourNamespace
-{
-    public enum PartitionCategory { Small, Medium, Large, ExtraLarge }
-
-    public sealed class EventSet
-    {
-        public string EventId { get; init; } = Guid.NewGuid().ToString("N");
-        public PartitionCategory Category { get; init; }
-        // Add any other properties you need
-    }
-
-    /// <summary>
-    /// Category-aware queue with deterministic batch rules (no slot math).
-    /// Producers enqueue; a single consumer calls DequeueBatchAsync() in a loop.
-    /// </summary>
-    public sealed class CategoryQueue
+public sealed class CategoryQueue
     {
         // One queue per category
         private readonly ConcurrentQueue<EventSet> _s = new();
@@ -29,17 +8,17 @@ namespace YourNamespace
 
         // Coordination
         private readonly SemaphoreSlim _nonEmpty = new(0); // one-bit signal
-        private readonly object _gate = new();             // atomically choose & drain a batch
-        private int _total;                                 // total items across all queues
+        private readonly object _gate = new();             // atomic selection/drain
+        private int _total;                                 // total items (best-effort)
 
-        // (Optional) hooks
+        // Hooks (optional)
         public event Action<EventSet>? ItemEnqueued;
         public event Action<IReadOnlyList<EventSet>>? BatchDequeued;
 
-        // ------------------- Producer API -------------------
+        // ------------------- Producers -------------------
         public void Enqueue(EventSet item)
         {
-            if (item == null) throw new ArgumentNullException(nameof(item));
+            if (item is null) throw new ArgumentNullException(nameof(item));
 
             switch (item.Category)
             {
@@ -51,13 +30,15 @@ namespace YourNamespace
             }
 
             ItemEnqueued?.Invoke(item);
+
+            // wake consumer only on 0 -> 1 transition
             if (Interlocked.Increment(ref _total) == 1)
-                _nonEmpty.Release(); // 0 -> 1 transition: wake consumer
+                _nonEmpty.Release();
         }
 
         public void EnqueueBatch(IEnumerable<EventSet> items)
         {
-            if (items == null) throw new ArgumentNullException(nameof(items));
+            if (items is null) throw new ArgumentNullException(nameof(items));
             foreach (var it in items) Enqueue(it);
         }
 
@@ -67,36 +48,28 @@ namespace YourNamespace
             return (s, m, l, x, s + m + l + x);
         }
 
-        // ------------------- Consumer API -------------------
-        /// <summary>
-        /// Dequeues ONE batch following the fixed rules:
-        /// 1) XL>=1 -> 1 XL (exclusive)
-        /// 2) else L>=2 -> 2 L (exclusive)
-        /// 3) else L==1 && M>=1 -> 1 L + up to 5 M (no S)
-        /// 4) else M>=10 -> 10 M
-        /// 5) else M in [1..9] -> all M, then top with S to 10 total
-        /// 6) else -> all S
-        /// </summary>
+        // ------------------- Consumer -------------------
         public async Task<IReadOnlyList<EventSet>> DequeueBatchAsync(CancellationToken ct)
         {
             await _nonEmpty.WaitAsync(ct).ConfigureAwait(false);
 
-            var batch = new List<EventSet>(capacity: 16);
+            var batch = new List<EventSet>(16);
             int removed = 0;
 
             lock (_gate)
             {
+                // Nothing to do (rare race)
                 if (Volatile.Read(ref _total) == 0)
-                    return Array.Empty<EventSet>(); // lost the race; nothing to do
+                    return Array.Empty<EventSet>();
 
-                // ---- helpers (used under lock only) ----
+                // helpers (used only under lock)
                 static int Count(ConcurrentQueue<EventSet> q) => q.Count;
 
-                bool TryTakeN(ConcurrentQueue<EventSet> q, int n)
+                bool TakeN(ConcurrentQueue<EventSet> q, int n)
                 {
                     for (int i = 0; i < n; i++)
                     {
-                        if (!q.TryDequeue(out var e)) return false; // shouldn't happen with Count guard
+                        if (!q.TryDequeue(out var e)) return false; // guarded by Count normally
                         batch.Add(e);
                         removed++;
                     }
@@ -124,56 +97,62 @@ namespace YourNamespace
                     }
                 }
 
-                // ---- snapshot counts ----
+                // snapshot counts (single consumer => consistent enough for decisions)
                 int cx = Count(_x);
                 int cl = Count(_l);
                 int cm = Count(_m);
                 int cs = Count(_s);
 
-                // ---- RULES ----
+                // ---------------- RULES (strict order) ----------------
 
-                // Rule 1: 1×XL exclusive
+                // 1) XL exclusive
                 if (cx >= 1)
                 {
-                    TryTakeN(_x, 1);
+                    TakeN(_x, 1);
                 }
-                // Rule 2: 2×L exclusive
+                // 2) 2×L exclusive
                 else if (cl >= 2)
                 {
-                    TryTakeN(_l, 2);
+                    TakeN(_l, 2);
                 }
-                // Rule 3: 1×L + up to 5×M (no S here)
+                // 3) 1×L + up to 5×M (no S here)
                 else if (cl == 1 && cm >= 1)
                 {
-                    TryTakeN(_l, 1);
+                    TakeN(_l, 1);
                     int takeM = Math.Min(5, cm);
-                    TryTakeN(_m, takeM);
+                    TakeN(_m, takeM);
                 }
-                // Rule 4: 10×M
+                // 4) 10×M
                 else if (cm >= 10)
                 {
-                    TryTakeN(_m, 10);
+                    TakeN(_m, 10);
                 }
-                // Rule 5: 1..9 M -> all M + top with S to 10
+                // 5) 1..9 M  -> all M + top with S to 10
                 else if (cm >= 1)
                 {
                     int takenM = TakeUpTo(_m, cm); // drain all current M
-                    int needS = Math.Max(0, 10 - takenM);
+                    int needS  = Math.Max(0, 10 - takenM);
                     TakeUpTo(_s, needS);
                 }
-                // Rule 6: only S remain -> drain all S
+                // 6) only S remain  -> drain all S
                 else
                 {
                     DrainAll(_s);
                 }
 
-                // ---- finalize ----
+                // finalize counters & signal
                 int remaining = Interlocked.Add(ref _total, -removed);
-                if (remaining > 0) _nonEmpty.Release();
+                if (remaining < 0)
+                {
+                    // defensive clamp (should not happen, but safe)
+                    Interlocked.Exchange(ref _total, 0);
+                    remaining = 0;
+                }
+                if (remaining > 0)
+                    _nonEmpty.Release();
 
                 BatchDequeued?.Invoke(batch);
                 return batch;
             }
         }
     }
-}
