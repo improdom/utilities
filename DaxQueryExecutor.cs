@@ -1,158 +1,135 @@
-public sealed class CategoryQueue
-    {
-        // One queue per category
-        private readonly ConcurrentQueue<EventSet> _s = new();
-        private readonly ConcurrentQueue<EventSet> _m = new();
-        private readonly ConcurrentQueue<EventSet> _l = new();
-        private readonly ConcurrentQueue<EventSet> _x = new();
+<# =======================  PARAMETERS  ======================= #>
+param(
+  # Auth (Service Principal is recommended for CI/CD)
+  [Parameter(Mandatory=$true)] [string] $TenantId,
+  [Parameter(Mandatory=$true)] [string] $ClientId,
+  [Parameter(Mandatory=$true)] [string] $ClientSecret,
 
-        // Coordination
-        private readonly SemaphoreSlim _nonEmpty = new(0); // one-bit signal
-        private readonly object _gate = new();             // atomic selection/drain
-        private int _total;                                 // total items (best-effort)
+  # Identify the gateway & targets
+  [Parameter(Mandatory=$true)] [string] $GatewayName,     # friendly name shown in Power BI
+  [Parameter(Mandatory=$true)] [string] $WorkspaceId,     # GUID
+  [Parameter(Mandatory=$true)] [string] $DatasetId,       # GUID
 
-        // Hooks (optional)
-        public event Action<EventSet>? ItemEnqueued;
-        public event Action<IReadOnlyList<EventSet>>? BatchDequeued;
+  # Databricks connection details
+  [Parameter(Mandatory=$true)] [string] $DbxServer,       # e.g. adb-<wsid>.<region>.azuredatabricks.net
+  [Parameter(Mandatory=$true)] [string] $DbxHttpPath,     # e.g. /sql/1.0/warehouses/<warehouse-id>
+  [int] $DbxPort = 443,
 
-        // ------------------- Producers -------------------
-        public void Enqueue(EventSet item)
-        {
-            if (item is null) throw new ArgumentNullException(nameof(item));
+  # Choose ONE auth method: PAT or OAuth2
+  [string] $DatabricksPAT = $null,        # for PAT (Basic auth: username="token", password=<PAT>)
+  [switch] $UseOAuth2CallerIdentity,      # for OAuth2: use the API caller's AAD identity (owner token)
+  [switch] $UseOAuth2EndUserSSO,          # for OAuth2: end-user SSO (DirectQuery)
+  
+  # Optional: grant a user/SP access to the datasource after creation
+  [string] $GrantToObjectId = $null,      # Entra objectId of user/service principal to grant 'User'
+  [ValidateSet("None","Viewer","User","Admin")] [string] $GrantAccessRight = "User"
+)
 
-            switch (item.Category)
-            {
-                case PartitionCategory.Small:      _s.Enqueue(item); break;
-                case PartitionCategory.Medium:     _m.Enqueue(item); break;
-                case PartitionCategory.Large:      _l.Enqueue(item); break;
-                case PartitionCategory.ExtraLarge: _x.Enqueue(item); break;
-                default: throw new ArgumentOutOfRangeException(nameof(item.Category));
-            }
+Import-Module MicrosoftPowerBIMgmt.Profile  -ErrorAction Stop
+Import-Module MicrosoftPowerBIMgmt.Data     -ErrorAction Stop
 
-            ItemEnqueued?.Invoke(item);
+Write-Host "Authenticating to Power BI..."
+$secure = ConvertTo-SecureString $ClientSecret -AsPlainText -Force
+Connect-PowerBIServiceAccount -ServicePrincipal -Tenant $TenantId -ClientId $ClientId -Credential (New-Object System.Management.Automation.PSCredential($ClientId,$secure))
 
-            // wake consumer only on 0 -> 1 transition
-            if (Interlocked.Increment(ref _total) == 1)
-                _nonEmpty.Release();
-        }
+function Invoke-PBIGet($path)  { Invoke-PowerBIRestMethod -Url "v1.0/myorg/$path" -Method Get    | ConvertFrom-Json }
+function Invoke-PBIPost($path,$body) { 
+  $json = ($body | ConvertTo-Json -Depth 10)
+  Invoke-PowerBIRestMethod -Url "v1.0/myorg/$path" -Method Post -Body $json -ContentType "application/json" | ConvertFrom-Json
+}
 
-        public void EnqueueBatch(IEnumerable<EventSet> items)
-        {
-            if (items is null) throw new ArgumentNullException(nameof(items));
-            foreach (var it in items) Enqueue(it);
-        }
+# ---------- 1) Locate gateway and get its RSA public key ----------
+$gateways = Invoke-PBIGet "gateways"   # contains publicKey { modulus, exponent }
+$gateway  = $gateways.value | Where-Object { $_.name -eq $GatewayName } | Select-Object -First 1
+if (-not $gateway) { throw "Gateway named '$GatewayName' not found." }
 
-        public (int small, int medium, int large, int extraLarge, int total) GetCounts()
-        {
-            var s = _s.Count; var m = _m.Count; var l = _l.Count; var x = _x.Count;
-            return (s, m, l, x, s + m + l + x);
-        }
+# Get full gateway (ensures publicKey present)
+$gatewayFull = Invoke-PBIGet "gateways/$($gateway.id)"
+$pub = $gatewayFull.publicKey
+if (-not $pub.modulus -or -not $pub.exponent) { throw "Gateway public key missing." }
 
-        // ------------------- Consumer -------------------
-        public async Task<IReadOnlyList<EventSet>> DequeueBatchAsync(CancellationToken ct)
-        {
-            await _nonEmpty.WaitAsync(ct).ConfigureAwait(false);
+# ---------- helper: encrypt credentials with RSA-OAEP ----------
+Add-Type -AssemblyName System.Security
+function Encrypt-ForGateway([string]$plaintext,[string]$b64Modulus,[string]$b64Exponent) {
+  $rsa = [System.Security.Cryptography.RSA]::Create()
+  $params = New-Object System.Security.Cryptography.RSAParameters
+  $params.Modulus = [Convert]::FromBase64String($b64Modulus)
+  $params.Exponent = [Convert]::FromBase64String($b64Exponent)
+  $rsa.ImportParameters($params)
+  $bytes = [Text.Encoding]::UTF8.GetBytes($plaintext)
+  $cipher = $rsa.Encrypt($bytes,[System.Security.Cryptography.RSAEncryptionPadding]::OaepSHA1)
+  [Convert]::ToBase64String($cipher)
+}
 
-            var batch = new List<EventSet>(16);
-            int removed = 0;
+# ---------- 2) Build connectionDetails for Databricks ----------
+$connectionDetails = @{
+  server  = $DbxServer          # "Server hostname" in UI
+  httpPath= $DbxHttpPath        # "HTTP path"
+  port    = $DbxPort
+} | ConvertTo-Json
 
-            lock (_gate)
-            {
-                // Nothing to do (rare race)
-                if (Volatile.Read(ref _total) == 0)
-                    return Array.Empty<EventSet>();
+# ---------- 3) Build credentialDetails ----------
+if ($DatabricksPAT) {
+  # PAT via Basic: username='token', password='<PAT>' (Databricks guidance)
+  $credJson = @{ credentialData = @(
+      @{ name="username"; value="token" },
+      @{ name="password"; value=$DatabricksPAT }
+  ) } | ConvertTo-Json -Depth 5
+  $encCreds = Encrypt-ForGateway $credJson $pub.modulus $pub.exponent
+  $credentialDetails = @{
+    credentialType      = "Basic"
+    credentials         = $encCreds
+    encryptedConnection = "Encrypted"
+    encryptionAlgorithm = "RSA-OAEP"
+    privacyLevel        = "Organizational"
+  }
+}
+elseif ($UseOAuth2CallerIdentity -or $UseOAuth2EndUserSSO) {
+  # OAuth2; choose one SSO mode
+  $credJson = @{ credentialData = @() } | ConvertTo-Json  # no secrets; using AAD identity
+  $encCreds = Encrypt-ForGateway $credJson $pub.modulus $pub.exponent
+  $credentialDetails = @{
+    credentialType                 = "OAuth2"
+    credentials                    = $encCreds
+    encryptedConnection            = "Encrypted"
+    encryptionAlgorithm            = "RSA-OAEP"
+    privacyLevel                   = "Organizational"
+    useCallerAADIdentity           = [bool]$UseOAuth2CallerIdentity.IsPresent
+    useEndUserOAuth2Credentials    = [bool]$UseOAuth2EndUserSSO.IsPresent
+  }
+}
+else {
+  throw "Select an auth method: provide -DatabricksPAT OR -UseOAuth2CallerIdentity OR -UseOAuth2EndUserSSO."
+}
 
-                // helpers (used only under lock)
-                static int Count(ConcurrentQueue<EventSet> q) => q.Count;
+# ---------- 4) Create the Databricks datasource on the gateway ----------
+$createBody = @{
+  dataSourceType    = "Databricks"
+  datasourceName    = "ADB – $($DbxServer)$($DbxHttpPath)"
+  connectionDetails = $connectionDetails
+  credentialDetails = $credentialDetails
+}
+Write-Host "Creating Databricks datasource on gateway '$($gateway.name)'..."
+$created = Invoke-PBIPost "gateways/$($gateway.id)/datasources" $createBody
+$datasourceId = $created.id
+Write-Host "Datasource created: $datasourceId"
 
-                bool TakeN(ConcurrentQueue<EventSet> q, int n)
-                {
-                    for (int i = 0; i < n; i++)
-                    {
-                        if (!q.TryDequeue(out var e)) return false; // guarded by Count normally
-                        batch.Add(e);
-                        removed++;
-                    }
-                    return true;
-                }
+# ---------- 5) (Optional) Grant another principal access to the datasource ----------
+if ($GrantToObjectId) {
+  $grantBody = @{
+    identifier     = $GrantToObjectId
+    principalType  = "App"     # or "User" if granting to a user; adjust as needed
+    datasourceAccessRight = $GrantAccessRight
+  }
+  Invoke-PBIPost "gateways/$($gateway.id)/datasources/$datasourceId/users" $grantBody | Out-Null
+  Write-Host "Granted $GrantAccessRight to object $GrantToObjectId on datasource $datasourceId"
+}
 
-                int TakeUpTo(ConcurrentQueue<EventSet> q, int n)
-                {
-                    int k = 0;
-                    for (; k < n; k++)
-                    {
-                        if (!q.TryDequeue(out var e)) break;
-                        batch.Add(e);
-                        removed++;
-                    }
-                    return k;
-                }
-
-                void DrainAll(ConcurrentQueue<EventSet> q)
-                {
-                    while (q.TryDequeue(out var e))
-                    {
-                        batch.Add(e);
-                        removed++;
-                    }
-                }
-
-                // snapshot counts (single consumer => consistent enough for decisions)
-                int cx = Count(_x);
-                int cl = Count(_l);
-                int cm = Count(_m);
-                int cs = Count(_s);
-
-                // ---------------- RULES (strict order) ----------------
-
-                // 1) XL exclusive
-                if (cx >= 1)
-                {
-                    TakeN(_x, 1);
-                }
-                // 2) 2×L exclusive
-                else if (cl >= 2)
-                {
-                    TakeN(_l, 2);
-                }
-                // 3) 1×L + up to 5×M (no S here)
-                else if (cl == 1 && cm >= 1)
-                {
-                    TakeN(_l, 1);
-                    int takeM = Math.Min(5, cm);
-                    TakeN(_m, takeM);
-                }
-                // 4) 10×M
-                else if (cm >= 10)
-                {
-                    TakeN(_m, 10);
-                }
-                // 5) 1..9 M  -> all M + top with S to 10
-                else if (cm >= 1)
-                {
-                    int takenM = TakeUpTo(_m, cm); // drain all current M
-                    int needS  = Math.Max(0, 10 - takenM);
-                    TakeUpTo(_s, needS);
-                }
-                // 6) only S remain  -> drain all S
-                else
-                {
-                    DrainAll(_s);
-                }
-
-                // finalize counters & signal
-                int remaining = Interlocked.Add(ref _total, -removed);
-                if (remaining < 0)
-                {
-                    // defensive clamp (should not happen, but safe)
-                    Interlocked.Exchange(ref _total, 0);
-                    remaining = 0;
-                }
-                if (remaining > 0)
-                    _nonEmpty.Release();
-
-                BatchDequeued?.Invoke(batch);
-                return batch;
-            }
-        }
-    }
+# ---------- 6) Bind your dataset to the gateway (+ specific datasource) ----------
+$bindBody = @{
+  gatewayObjectId     = $gateway.id
+  datasourceObjectIds = @($datasourceId)
+}
+Write-Host "Binding dataset $DatasetId in workspace $WorkspaceId to gateway..."
+Invoke-PBIPost "groups/$WorkspaceId/datasets/$DatasetId/Default.BindToGateway" $bindBody | Out-Null
+Write-Host "Binding complete."
