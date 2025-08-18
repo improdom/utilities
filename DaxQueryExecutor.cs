@@ -1,37 +1,5 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
+https://learn.microsoft.com/en-us/fabric/enterprise/powerbi/service-premium-large-models
 
-public sealed class ScheduledAction
-{
-    private readonly TimeSpan _interval;
-    private DateTime _nextRunUtc;
+https://learn.microsoft.com/en-us/fabric/enterprise/powerbi/service-dataset-direct-lake-overview
 
-    /// <summary>
-    /// Initializes a scheduler that will run every <paramref name="interval"/>.
-    /// </summary>
-    public ScheduledAction(TimeSpan interval)
-    {
-        _interval = interval;
-        _nextRunUtc = DateTime.UtcNow + _interval;
-    }
-
-    /// <summary>
-    /// Checks if it’s time, and if yes executes <paramref name="action"/>.
-    /// </summary>
-    public async Task TickAsync(Func<CancellationToken, Task> action, CancellationToken ct)
-    {
-        var now = DateTime.UtcNow;
-        if (now < _nextRunUtc) return;
-
-        try
-        {
-            await action(ct).ConfigureAwait(false);
-        }
-        finally
-        {
-            // Schedule next run
-            _nextRunUtc = now + _interval;
-        }
-    }
-}
+https://powerbi.microsoft.com/en-us/blog/power-bi-large-models-on-demand-load/
