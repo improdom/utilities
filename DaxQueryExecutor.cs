@@ -1,21 +1,12 @@
-/* START QUERY BUILDER */
 EVALUATE
 VAR MaxBizDate =
-    CALCULATE (
-        MAX ( pbi_fact_risk_results_aggregated_vw[Business Date] ),
-        ALL ( pbi_fact_risk_results_aggregated_vw[Business Date] )   -- get max available date
-    )
+    CALCULATE ( MAX ( pbi_fact_risk_results_aggregated_vw[Business Date] ),
+                ALL ( pbi_fact_risk_results_aggregated_vw[Business Date] ) )
 RETURN
-SUMMARIZECOLUMNS (
-    'CoB Date'[CoB Date],
-    KEEPFILTERS (
-        FILTER (
-            ALL ( pbi_fact_risk_results_aggregated_vw[Business Date] ),
-            pbi_fact_risk_results_aggregated_vw[Business Date] = MaxBizDate
-        )
-    ),
-    "Report Value", [Report Value]
+ROW (
+    "CoB Date", MaxBizDate,
+    "Report Value",
+        CALCULATE ( [Report Value],
+                    TREATAS ( { MaxBizDate }, 'CoB Date'[CoB Date] ),
+                    REMOVEFILTERS ( pbi_fact_risk_results_aggregated_vw[Business Date] ) )
 )
-ORDER BY
-    'CoB Date'[CoB Date] ASC
-/* END QUERY BUILDER */
