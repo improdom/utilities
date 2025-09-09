@@ -1,7 +1,10 @@
-Hi Mohan,
+Hi Pushkar,
 
-I ran the query and did not encounter a timeout error. However, as I suspected, the issue is that the query exceeds the maximum row limit of 1 million rows. To address this, I refactored the DAX to resolve problems related to filters.
+For the PoC, we will need Fabric capacity equivalent to a P4 node. This will provide a comparable baseline to our current setup and allow us to validate performance when moving our semantic model (aggregation + detail tables in DirectQuery) into hybrid and Direct Lake modes.
 
-Please note that the FILTER function typically generates separate SQL queries where other filters may not be applied, which can significantly increase the row count required to complete the DAX query. Wherever possible, please use KEEPRFILTERS instead of FILTER. Do keep in mind that FILTER and KEEPRFILTERS behave differently depending on the scenario, so it’s important to choose the right one.
+We recommend using the Subscription model rather than PAYG, since the PoC will run for approximately 3 months and will involve loading several terabytes of data and running sustained queries. Subscription provides predictable costs and consistent dedicated resources throughout the PoC.
 
-Attached is the refactored query for your review.
+Additionally, we will need E5 license access for 5 users to properly validate end-to-end feasibility.
+
+Thanks,
+Julio
