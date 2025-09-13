@@ -1,10 +1,18 @@
-Hi Pushkar,
-
-For the PoC, we will need Fabric capacity equivalent to a P4 node. This will provide a comparable baseline to our current setup and allow us to validate performance when moving our semantic model (aggregation + detail tables in DirectQuery) into hybrid and Direct Lake modes.
-
-We recommend using the Subscription model rather than PAYG, since the PoC will run for approximately 3 months and will involve loading several terabytes of data and running sustained queries. Subscription provides predictable costs and consistent dedicated resources throughout the PoC.
-
-Additionally, we will need E5 license access for 5 users to properly validate end-to-end feasibility.
-
-Thanks,
-Julio
+SELECT
+    $SYSTEM.TMSCHEMA_TABLES.[NAME]  AS TableName,
+    $SYSTEM.TMSCHEMA_COLUMNS.[NAME] AS ColumnName,
+    SUM(CASE WHEN $SYSTEM.DISCOVER_STORAGE_TABLE_COLUMN_SEGMENTS.[IS_RESIDENT] = 1
+             THEN 1 ELSE 0 END)     AS ResidentSegments,
+    COUNT(*)                         AS TotalSegments
+FROM $SYSTEM.DISCOVER_STORAGE_TABLE_COLUMN_SEGMENTS
+JOIN $SYSTEM.DISCOVER_STORAGE_TABLE_COLUMNS
+  ON $SYSTEM.DISCOVER_STORAGE_TABLE_COLUMN_SEGMENTS.[TABLE_ID]  = $SYSTEM.DISCOVER_STORAGE_TABLE_COLUMNS.[TABLE_ID]
+ AND $SYSTEM.DISCOVER_STORAGE_TABLE_COLUMN_SEGMENTS.[COLUMN_ID] = $SYSTEM.DISCOVER_STORAGE_TABLE_COLUMNS.[COLUMN_ID]
+JOIN $SYSTEM.TMSCHEMA_COLUMNS
+  ON $SYSTEM.DISCOVER_STORAGE_TABLE_COLUMNS.[COLUMN_ID] = $SYSTEM.TMSCHEMA_COLUMNS.[ID]
+JOIN $SYSTEM.TMSCHEMA_TABLES
+  ON $SYSTEM.TMSCHEMA_COLUMNS.[TABLE_ID] = $SYSTEM.TMSCHEMA_TABLES.[ID]
+WHERE $SYSTEM.TMSCHEMA_TABLES.[IS_PRIVATE] = 0
+GROUP BY
+    $SYSTEM.TMSCHEMA_TABLES.[NAME],
+    $SYSTEM.TMSCHEMA_COLUMNS.[NAME];
