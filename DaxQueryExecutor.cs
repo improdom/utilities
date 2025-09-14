@@ -1,17 +1,25 @@
-some more context, I should have provided the feed back and the by February 2025 but I forgot do it on time, let me review what has happened in this year so we can adapt and also include this information.
+✅ MyImpact-Ready Objectives for 2025 (Custom – Julio Diaz)
+1. Job-Specific – Strategic Data Model (SDM) Implementation
 
-This year, starting on January, we started the development of a new approach for our model, last year we worked in a model named CDM was pre-aggregating the data in databricks using synthetic keys to remove duplicates, it was identified as having some amenability issues due to it would be expensive to change the schema before for example, if a column needed to be moved or updated then the entire data in the fact and dimension table would need to reloaded, which is many terabytes of data to process.
+Objective: Deliver a sustainable Strategic Data Model (SDM) to improve maintainability, performance, and alignment with business requirements.
+Outcome: Contribute business expertise in analysis and design of SDM; implement optimized Databricks schema eliminating synthetic keys and pre-aggregation; deliver a fully deployed Power BI semantic model aligned to SDM by Q2 2025. (✔ Already completed — demonstrate contribution)
 
-For the year 2025 our new manager decided we would for on the creation of a new model --Strategic Data Model (SDM) which would not use synthetic keys to aggregate the data, same business keys would be used so it is easier to maintain the model and also to improve the data processing performance as the aggregation step would not be required, improving end-to-end processing timings.
+2. Job-Specific – Platform Availability & SLA Reliability
 
-This year SDM has been our main task, a new design of the data model in databricks was created where the model was optimized to reduce or maintain the same data volume while removing the pre-aggregation step and the use of synthetic keys. In this tasked I contributed in the analysis and design using my Business expertise.  This task was completed.
+Objective: Ensure 99% availability of Market Risk reporting by eliminating downtime during refreshes.
+Outcome: Design and implement a Reader/Writer semantic model approach, ensuring seamless user access during refresh cycles; validate SLA compliance with business stakeholders by Q2 2025. (✔ Completed — demonstrates innovation & leadership)
 
-In the power bi side, I developed a new semantic model to sit on top of the new databricks data model using the same composite model and aggregation table design. I design and developed this model. This task was completed
+3. Job-Specific – ARC Risk Model Scalability & Performance
 
-I also designed and developed a new approach to ensure our platform is always available to users and achieving our SLA of being available for users to run report 99% of the time. the problem was that users could not run queries while the power bi model was getting refreshed, and they had to wait for a specific time until the refresh completed, the problem was that we refreshed the model multiple times a day, consequently this was a sever issue. I implemented a reader/writer approach that consisted in having two copies of the same model, and only expose the reader/active model to users while the other model was getting refresh in writer/inactivce state, then we flipped models to refresh the other model.  I designed and developed the required components, this task was complete.
+Objective: Strengthen the ARC Risk Model to ensure scalability and consistent query performance for Market Risk reporting.
+Outcome: Deliver a PoC using Fabric + OneLake (Direct Lake) to support storage of 8+ COB dates by Q2 2025; improve DirectQuery response times to <10s for critical queries by Q3 2025; if no viable solution exists, define and present alternative platform recommendations by Q4 2025. (🚧 Ongoing/Pending)
 
-these are outstanding tasks and challenges pending for this year:
+4. Strategic Leadership – ARC Platform Roadmap
 
- a) we need to store data for a minimum of 8 dates, at the moment we can only load three cobs so important changes will be required in this area, we're planning to do a PoC where we'll use Fabric and OneLake with direct lake to see if that allows us to scale up. b) another challenge is query execution performance, due to direct query slow performance our application is not able to provide consistent and good performance across all attributes, we'll need to find a way to either improve the DQ performance or find a different approach. c) If no feasible solution is found then we will need to find a different alternative platform different to power bi/Fabric for our cube/aggregation platform which provides good performance and capacity. I'm also being considered for a promotion to Director.
+Objective: Define and drive the strategic roadmap for the ARC Aggregation Platform, ensuring long-term scalability and alignment with UBS risk reporting priorities.
+Outcome: Deliver a 3-year roadmap by Q4 2025 covering Fabric adoption, query optimization, and alternative platform options; secure endorsement from MRO, Transformation, and Risk IT stakeholders. (🚧 Pending, aligns with Director case)
 
-let us please create new objectives using this information and context
+5. People / Leadership Development
+
+Objective: Strengthen Market Risk engineering capabilities through knowledge transfer and mentoring.
+Outcome: Deliver 3 cross-team training sessions on semantic modeling, Fabric adoption, and reconciliation processes; mentor at least 2 engineers into lead-level roles; achieve 80% adoption of best practices by year-end. (🚧 Pending, supports leadership growth)
