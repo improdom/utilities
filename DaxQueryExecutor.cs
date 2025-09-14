@@ -1,132 +1,44 @@
-// Tabular Editor script: Build a DAX that UNIONs TOPN(1) from every IMPORT table,
-// projecting to a consistent schema: (__Table, __Payload).
-// The payload string concatenates *all* columns in the single row with type-aware formatting.
+Perfect 👍 Let’s finalize them in **MyImpact style**: short, professional, measurable, and impact-oriented. These will slot directly into your 2025 objectives without overlapping with the pre-populated ones.
 
-using System;
-using System.Linq;
-using System.Text;
-using System.Collections.Generic;
-using System.Windows.Forms;
-using Microsoft.AnalysisServices.Tabular;
+---
 
-bool IsCalcGroup(Table t) => t is CalculationGroupTable;
+## ✅ MyImpact-Ready Objectives for 2025 (Custom – Julio Diaz)
 
-bool IsImportTable(Table t)
-{
-    try
-    {
-        return t.IsEnabled
-            && t.Partitions != null
-            && t.Partitions.Any(p => p.Mode == PartitionMode.Import);
-    }
-    catch { return false; }
-}
+### 1. Job-Specific – ARC Risk Model Performance & Stability
 
-string EscapeTable(string tableName)
-{
-    // DAX table name needs single quotes; embedded single quotes are doubled.
-    return "'" + tableName.Replace("'", "''") + "'";
-}
+**Objective:** Strengthen the ARC Risk Model to ensure scalability and consistent performance for Market Risk reporting.
+**Outcome:** Deliver a PoC using Fabric + OneLake (Direct Lake) to enable storage of 8+ COB dates (by Q2 2025); improve DirectQuery response times to sub-10s for critical queries (by Q3 2025); and, if current technologies are insufficient, define and present alternative platform recommendations ensuring long-term scalability (by Q4 2025).
 
-string EscapeColumn(string colName)
-{
-    // DAX column reference uses [ ] and embedded ] must be doubled: ]
-    return "[" + colName.Replace("]", "]]") + "]";
-}
+---
 
-string BuildValueExpr(string tableName, Column col)
-{
-    var t = EscapeTable(tableName);
-    var c = EscapeColumn(col.Name);
+### 2. Strategic Leadership – ARC Platform Roadmap
 
-    switch (col.DataType)
-    {
-        case DataType.String:
-            // Cast to string via concatenation with "" to avoid type issues on BLANK().
-            return t + c + " & \"\"";
-        case DataType.DateTime:
-            return $"FORMAT({t}{c}, \"yyyy-mm-ddTHH:nn:ss\")";
-        case DataType.Decimal:
-        case DataType.Double:
-        case DataType.Int64:
-            return $"FORMAT({t}{c}, \"General Number\")";
-        case DataType.Boolean:
-            return $"IF({t}{c}, \"TRUE\", \"FALSE\")";
-        // Handle Currency the same as Decimal if present in your TE version
-        case DataType.Currency:
-            return $"FORMAT({t}{c}, \"General Number\")";
-        default:
-            // Binaries/variants or unknown types: safe literal
-            return "\"<unsupported>\"";
-    }
-}
+**Objective:** Define and drive the strategic roadmap for the ARC Aggregation Platform to support UBS’s risk reporting at scale.
+**Outcome:** Deliver a 3-year roadmap by Q4 2025 covering platform scalability, Fabric adoption, and potential alternatives, securing endorsement from key stakeholders (MRO, Transformation, Risk IT).
 
-string BuildPayloadExpr(string tableName, IEnumerable<Column> cols)
-{
-    // Create: "Col1=" & <expr1> & " | Col2=" & <expr2> & ...
-    var parts = new List<string>();
-    foreach (var col in cols)
-    {
-        var safeLabel = col.Name.Replace("\"", "\"\""); // for embedding in string literal
-        var valExpr = BuildValueExpr(tableName, col);
-        parts.Add($"\"{safeLabel}=\" & {valExpr}");
-    }
-    if (parts.Count == 0) return "\"\"";
-    return string.Join(" & \" | \" & ", parts);
-}
+---
 
-var importTables = Model.Tables
-    .Where(t => !IsCalcGroup(t))
-    .Where(t => IsImportTable(t))
-    .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
-    .ToList();
+### 3. People / Leadership Development
 
-if (importTables.Count == 0)
-{
-    var msg = "-- No Import tables found.";
-    Clipboard.SetText(msg);
-    Output.WriteLine(msg);
-    return;
-}
+**Objective:** Strengthen Market Risk engineering capabilities by developing talent and fostering collaboration across teams.
+**Outcome:** Deliver 3 cross-team training sessions on semantic modeling and data architecture; mentor at least 2 junior engineers into lead roles; achieve 80% adoption of best practices by year-end.
 
-var sbUnion = new StringBuilder();
-for (int i = 0; i < importTables.Count; i++)
-{
-    var t = importTables[i];
-    var tEsc = EscapeTable(t.Name);
+---
 
-    // Collect all *data* columns (exclude measure-like/calculated table columns if needed)
-    var tableCols = t.Columns
-        .Where(c => c.IsVisible || !c.IsVisible) // include hidden too; adjust if you want visible only
-        .OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
-        .ToList();
+### 4. Efficiency & Cost Optimization (optional but strong for Director case)
 
-    var payloadExpr = BuildPayloadExpr(t.Name, tableCols);
+**Objective:** Optimize infrastructure usage to improve performance and reduce operational cost of Market Risk reporting.
+**Outcome:** Implement warm-up strategies, DirectQuery optimizations, and partitioning to reduce compute consumption by 15% while maintaining service levels, by Q4 2025.
 
-    // SELECTCOLUMNS(TOPN(1,'Table'), "__Table","TableName","__Payload", <payload>)
-    var block = $@"        SELECTCOLUMNS(
-            TOPN(1, {tEsc}),
-            ""__Table"", ""{t.Name.Replace("\"", "\"\"")}"",
-            ""__Payload"", {payloadExpr}
-        )";
+---
 
-    sbUnion.Append(block);
-    if (i < importTables.Count - 1) sbUnion.Append(",\n");
-}
+💡 With these, you will:
 
-// Final DAX
-var dax = 
-$@"EVALUATE
-FILTER(
-    UNION(
-{sbUnion}
-    ),
-    FALSE()
-)";
+* Show **technical excellence** (Objective 1).
+* Show **strategic vision** (Objective 2).
+* Show **people leadership** (Objective 3).
+* Show **financial impact** (Objective 4, optional but strong).
 
-// Output + clipboard
-Clipboard.SetText(dax);
-Output.WriteLine($"-- Generated warm-up DAX for {importTables.Count} import table(s)");
-foreach (var t in importTables) Output.WriteLine($"--   included: {t.Name}");
-Output.WriteLine();
-Output.WriteLine(dax);
+---
+
+Do you want me to also **map each of these to UBS’s performance categories** (so they align with how your manager will later assess *Needs Focus / Good / Excellent contribution*)?
