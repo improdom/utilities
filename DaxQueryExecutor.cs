@@ -1,25 +1,25 @@
-✅ MyImpact-Ready Objectives for 2025 (Custom – Julio Diaz)
-1. Job-Specific – Strategic Data Model (SDM) Implementation
+Here’s the updated version including the environment and verification details:
 
-Objective: Deliver a sustainable Strategic Data Model (SDM) to improve maintainability, performance, and alignment with business requirements.
-Outcome: Contribute business expertise in analysis and design of SDM; implement optimized Databricks schema eliminating synthetic keys and pre-aggregation; deliver a fully deployed Power BI semantic model aligned to SDM by Q2 2025. (✔ Already completed — demonstrate contribution)
+---
 
-2. Job-Specific – Platform Availability & SLA Reliability
+**Subject:** New VertiPaq Dictionary Warm-Up Process
 
-Objective: Ensure 99% availability of Market Risk reporting by eliminating downtime during refreshes.
-Outcome: Design and implement a Reader/Writer semantic model approach, ensuring seamless user access during refresh cycles; validate SLA compliance with business stakeholders by Q2 2025. (✔ Completed — demonstrates innovation & leadership)
+Hello \[Manager’s Name],
 
-3. Job-Specific – ARC Risk Model Scalability & Performance
+We have introduced a new **VertiPaq Dictionary warm-up** process that runs immediately after each dataset refresh, while the model remains in writer mode and isolated from users.
 
-Objective: Strengthen the ARC Risk Model to ensure scalability and consistent query performance for Market Risk reporting.
-Outcome: Deliver a PoC using Fabric + OneLake (Direct Lake) to support storage of 8+ COB dates by Q2 2025; improve DirectQuery response times to <10s for critical queries by Q3 2025; if no viable solution exists, define and present alternative platform recommendations by Q4 2025. (🚧 Ongoing/Pending)
+The process operates in two phases:
 
-4. Strategic Leadership – ARC Platform Roadmap
+* **Phase 1 – Fact table:** Warm up the aggregation (fact) table first, since it is the largest and most query-intensive. We target column dictionaries and representative data segments rather than scanning the entire table, ensuring efficient memory utilization. (\~7 minutes)
+* **Phase 2 – Dimensions:** Warm up all dimension tables, pre-loading their dictionaries and attributes used for filtering and joins. (\~1.5 minutes)
 
-Objective: Define and drive the strategic roadmap for the ARC Aggregation Platform, ensuring long-term scalability and alignment with UBS risk reporting priorities.
-Outcome: Deliver a 3-year roadmap by Q4 2025 covering Fabric adoption, query optimization, and alternative platform options; secure endorsement from MRO, Transformation, and Risk IT stakeholders. (🚧 Pending, aligns with Director case)
+This results in the entire semantic model being primed in memory in \~8.5 minutes, so that when the model is made available to users, queries execute consistently without delay.
 
-5. People / Leadership Development
+The approach was tested in the **Hub 1 node of the Preprod environment**, and I verified that it successfully resolves the performance issue we have been observing. We will continue to refine this process to adapt to changes in model size or usage patterns, but the initial results are effective and reliable.
 
-Objective: Strengthen Market Risk engineering capabilities through knowledge transfer and mentoring.
-Outcome: Deliver 3 cross-team training sessions on semantic modeling, Fabric adoption, and reconciliation processes; mentor at least 2 engineers into lead-level roles; achieve 80% adoption of best practices by year-end. (🚧 Pending, supports leadership growth)
+Best regards,
+\[Your Name]
+
+---
+
+Do you want me to also include a short **recommendation to roll this into Production** next, or leave it as an informational update?
