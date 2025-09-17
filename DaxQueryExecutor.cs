@@ -1,3 +1,24 @@
+private static readonly Dictionary<string, Type> TypeMap = new Dictionary<string, Type>(StringComparer.OrdinalIgnoreCase)
+{
+    { "String", typeof(string) },
+    { "Int32", typeof(int) },
+    { "Int64", typeof(long) },
+    { "Boolean", typeof(bool) },
+    { "DateTime", typeof(DateTime) },
+    { "Decimal", typeof(decimal) },
+    { "Double", typeof(double) },
+    { "Float", typeof(float) }
+    // Add more as needed
+};
+
+...
+
+Type dataType = TypeMap.ContainsKey(g.DataType) ? TypeMap[g.DataType] : typeof(object);
+theParams.Columns.Add(new DataColumn("column", dataType));
+
+
+
+
 Here’s the updated version including the environment and verification details:
 
 ---
@@ -23,3 +44,4 @@ Best regards,
 ---
 
 Do you want me to also include a short **recommendation to roll this into Production** next, or leave it as an informational update?
+
