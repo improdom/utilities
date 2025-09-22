@@ -1,20 +1,29 @@
-Got it — here’s a softer version of the email with “confirm” replaced by more subtle wording:
+// ---- Helper: selected CoB set from slicers/filters ----
+Selected CoB Ids :=
+    ALLSELECTED ( 'CoB Date'[CoB Date ID] )
 
----
+Selected CoB Count :=
+    COUNTROWS ( [Selected CoB Ids] )
 
-**Subject:** Follow-up on Node Migration Request
+// ---- Helper: how many of those CoBs actually exist in the FACT ----
+// Ignore ALL filters (including unknown dimensions) then re-apply ONLY the CoB set via TREATAS.
+// This avoids having to name every dimension and keeps the check to a tiny scalar query.
+Available CoB Count :=
+CALCULATE (
+    DISTINCTCOUNT ( 'Σ Position RF'[CoB Date ID] ),
+    ALL ( 'Σ Position RF' ),                                  -- wipe all filters hitting the fact
+    TREATAS ( [Selected CoB Ids], 'Σ Position RF'[CoB Date ID] )  -- re-apply just the CoB set
+)
 
-Hi Zack,
+All Selected CoBs Available :=
+    [Selected CoB Count] = [Available CoB Count]
 
-I wanted to follow up on the earlier request regarding the second node. As you mentioned, the first node was successfully moved to a new cluster and we observed improved performance as a result.
-
-Could you let us know if it would be possible for the second node to also be migrated to a similar cluster to achieve the same level of improvements?
-
-Thank you for your guidance on this.
-
-Best regards,
-Julio
-
----
-
-Would you like me to make it **even more neutral** (e.g., phrased as an open-ended question) or keep this slight hint toward feasibility?
+// ---- Final measure: pure aggregate; no REMOVEFILTERS on the fact ----
+[Value USD] :=
+VAR Base := SUM ( 'Σ Position RF'[fact_value_usd] )
+RETURN
+    IF (
+        [All Selected CoBs Available],
+        Base,
+        CALCULATE ( Base, 'Σ Position RF'[updated ts] <> BLANK () )
+    )
