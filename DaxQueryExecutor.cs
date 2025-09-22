@@ -1,29 +1,16 @@
-// ---- Helper: selected CoB set from slicers/filters ----
-Selected CoB Ids :=
-    ALLSELECTED ( 'CoB Date'[CoB Date ID] )
-
-Selected CoB Count :=
-    COUNTROWS ( [Selected CoB Ids] )
-
-// ---- Helper: how many of those CoBs actually exist in the FACT ----
-// Ignore ALL filters (including unknown dimensions) then re-apply ONLY the CoB set via TREATAS.
-// This avoids having to name every dimension and keeps the check to a tiny scalar query.
-Available CoB Count :=
-CALCULATE (
-    DISTINCTCOUNT ( 'Σ Position RF'[CoB Date ID] ),
-    ALL ( 'Σ Position RF' ),                                  -- wipe all filters hitting the fact
-    TREATAS ( [Selected CoB Ids], 'Σ Position RF'[CoB Date ID] )  -- re-apply just the CoB set
-)
-
-All Selected CoBs Available :=
-    [Selected CoB Count] = [Available CoB Count]
-
-// ---- Final measure: pure aggregate; no REMOVEFILTERS on the fact ----
-[Value USD] :=
-VAR Base := SUM ( 'Σ Position RF'[fact_value_usd] )
-RETURN
-    IF (
-        [All Selected CoBs Available],
-        Base,
-        CALCULATE ( Base, 'Σ Position RF'[updated ts] <> BLANK () )
+MEASURE 'Risk Value'[MyMeasure] :=
+VAR SelectedCoBs   = VALUES ( 'CoB Date'[CoB Date ID] )
+VAR AllCoBsPresent =
+    CALCULATE (
+        -- compare distinct CoBs *within current filters* to selected set
+        COUNTROWS ( SelectedCoBs )
+            = DISTINCTCOUNT ( 'Σ Position RF'[CoB Date ID] ),
+        -- NO ALL(...) here; keep it scoped
+        KEEPFILTERS ( TREATAS ( SelectedCoBs, 'Σ Position RF'[CoB Date ID] ) )
     )
+RETURN
+CALCULATE (
+    SUM ( 'Σ Position RF'[reporting_value] ),
+    KEEPFILTERS ( TREATAS ( SelectedCoBs, 'Σ Position RF'[CoB Date ID] ) ),
+    IF ( AllCoBsPresent, TRUE(), 'Σ Position RF'[updated ts] <> BLANK() )
+)
