@@ -1,47 +1,28 @@
-Here’s an updated draft of the email based on your actual measure implementation in the screenshot:
+Hi all,
 
-⸻
+I wanted to share a quick update on the changes around DirectQuery attributes.
 
-Subject: Potential fix to avoid extra DISTINCT query in DQ scenarios — testing in progress
+We now have a separate measure, IS_DIRECT_QUERY_ATTRIBUTE, that detects when DQ attributes are in use. The main measure, BASE_VALUE_USD, references this detection measure to decide when to apply the CoB date routing logic.
 
-Hi team,
+Separating the detection has a couple of advantages:
 
-We’ve implemented a potential fix to address the redundant SELECT DISTINCT query that appears in Databricks when Position[Currency List] is placed on the axis together with our existing measure logic.
+it avoids repeating the same checks inside the business logic,
 
-What changed
+makes it easier to maintain if the set of DQ columns changes,
 
-In the measure we introduced a conditional gate:
+and allows us to test the detection logic independently.
 
-VAR isDirectQueryInUse =
-    ISINSCOPE ( 'Σ Position RF'[Currency List] ) ||
-    ISFILTERED ( 'Σ Position RF'[Currency List] )
+I’ve attached three files for review:
 
-RETURN
-IF (
-    isDirectQueryInUse,
-    SUM ( 'Σ Position RF'[fact_value_usd] ),   -- lean branch
-    DataValue                                  -- full branch with in-memory logic
-)
+BASE_VALUE_USD.dax
 
-	•	If Currency List is in scope (on axis/slicer), the measure uses a simplified SUM path that folds to a single grouped SQL — eliminating the extra DISTINCT probe.
-	•	Otherwise, it runs our original DataValue logic (including the in-memory vs. updated-ts branching).
+IS_DIRECT_QUERY_ATTRIBUTE.dax
 
-Why this matters
-	•	Keeps the output identical, but the query plan is cleaner when Currency List is used.
-	•	Early tests confirm that the duplicate DISTINCT query disappears and only one folded SQL is generated.
+BASE_VALUE_USD_DAX_STUDIO.dax
 
-Next steps
-	•	Venkat, can you run validation on the key scenarios:
-	1.	Visuals with Currency List on the axis.
-	2.	Visuals without Currency List.
-	3.	Mixed filters (CoB slicers, desk/book, etc.).
-	•	Please check Databricks query history to confirm that only one SQL statement is fired per visual.
+Venkat – could you start by testing with DAX Studio using the provided script, then move on to a deployment in appdev? Please check both correctness of results and performance (query counts, folding, CoB filters in SQL, etc.).
 
-Once all test cases have been covered, we’ll confirm whether this fix is stable enough to promote to the shared measure set.
+So far, local tests look good. We’ll confirm once all scenarios have been exercised.
 
 Thanks,
-Julio
-
-⸻
-
-Do you want me to also include a before/after query plan snapshot description (so the team sees what we expect in Query History), or keep it concise as above?
+[Your Name]
