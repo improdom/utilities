@@ -7,3 +7,12 @@ As we discussed last week, one option is to create an intermediate aggregation t
 Another approach could be moving these attributes into a separate table running in DirectQuery mode. The drawback is that it may require additional joins, which could affect query performance.
 
 Let’s review this in tomorrow’s call.
+
+Hi Amar/All,
+
+Since this behavior is already known to Microsoft and considered as working as designed, and given that even if Microsoft were to make a change it would likely take significant time, we need to continue testing the model with more advanced scenarios. We will run benchmarks that include complex calculations with MEVs, combining in-memory and DirectQuery attributes, all executed in DirectQuery mode in Databricks. This will help validate the DQ solution and reduce the risk of encountering the same issue in the future.
+
+I will work with Abhishek to identify the most complex queries Marvel is currently using and will incorporate additional DAX into the benchmarks. If these benchmarks are successful, they will provide a stronger level of confidence for future scenarios.
+
+Thanks,
+Julio on
