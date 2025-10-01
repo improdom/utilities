@@ -16,3 +16,118 @@ I will work with Abhishek to identify the most complex queries Marvel is current
 
 Thanks,
 Julio on
+
+
+
+
+<#
+.SYNOPSIS
+  Monitor a Power BI dataset parameter and highlight changes.
+
+.PREREQS
+  1) PowerShell 7+ recommended (works on Windows PowerShell too).
+  2) Install modules (once): 
+       Install-Module MicrosoftPowerBIMgmt -Scope CurrentUser
+  3) You must have permission to read the dataset in the workspace.
+
+.USAGE
+  - Set $WorkspaceName, $DatasetName, $ParameterName below.
+  - Run the script. A browser/MSAL prompt will sign you in.
+  - Press Ctrl+C to stop.
+#>
+
+# ----------- CONFIGURE THESE -----------
+$WorkspaceName = "My Workspace Name"
+$DatasetName   = "My Dataset Name"
+$ParameterName = "MyParameter"  # exactly as shown in Power BI
+$PollSeconds   = 30
+# --------------------------------------
+
+Import-Module MicrosoftPowerBIMgmt.Profile  -ErrorAction Stop
+Import-Module MicrosoftPowerBIMgmt.Workspaces -ErrorAction Stop
+Import-Module MicrosoftPowerBIMgmt.Data   -ErrorAction Stop
+
+function Connect-PowerBI-IfNeeded {
+    try {
+        # If token is stale, this will prompt you again as needed
+        if (-not (Get-PowerBIAccessToken -ErrorAction SilentlyContinue)) {
+            Connect-PowerBIServiceAccount | Out-Null
+        }
+    } catch {
+        Write-Host "Sign-in required..." -ForegroundColor Yellow
+        Connect-PowerBIServiceAccount | Out-Null
+    }
+}
+
+function Resolve-WorkspaceId {
+    param([string]$Name)
+    $ws = Get-PowerBIWorkspace -Name $Name -All | Select-Object -First 1
+    if (-not $ws) { throw "Workspace '$Name' not found or not visible." }
+    return $ws.Id
+}
+
+function Resolve-DatasetId {
+    param([Guid]$WorkspaceId, [string]$Name)
+    $ds = Get-PowerBIDataset -WorkspaceId $WorkspaceId | Where-Object { $_.Name -eq $Name } | Select-Object -First 1
+    if (-not $ds) { throw "Dataset '$Name' not found in workspace." }
+    return $ds.Id
+}
+
+function Get-ParameterValue {
+    param([Guid]$WorkspaceId, [string]$DatasetId, [string]$ParameterName)
+
+    $url = "groups/$WorkspaceId/datasets/$DatasetId/parameters"
+    # Uses your user context to call the REST API
+    $raw = Invoke-PowerBIRestMethod -Url $url -Method Get
+    $obj = $raw | ConvertFrom-Json
+
+    $param = $obj.value | Where-Object { $_.name -eq $ParameterName }
+    if (-not $param) { throw "Parameter '$ParameterName' not found in dataset." }
+    return $param.currentValue
+}
+
+# ---------- MAIN ----------
+try {
+    Connect-PowerBI-IfNeeded
+
+    $workspaceId = Resolve-WorkspaceId -Name $WorkspaceName
+    $datasetId   = Resolve-DatasetId   -WorkspaceId $workspaceId -Name $DatasetName
+
+    Write-Host "Monitoring parameter '$ParameterName' in dataset '$DatasetName' (workspace '$WorkspaceName')" -ForegroundColor Cyan
+    Write-Host "Polling every $PollSeconds seconds. Press Ctrl+C to stop." -ForegroundColor DarkCyan
+
+    $lastValue = $null
+
+    while ($true) {
+        try {
+            Connect-PowerBI-IfNeeded
+            $current = Get-ParameterValue -WorkspaceId $workspaceId -DatasetId $datasetId -ParameterName $ParameterName
+            $ts = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+
+            if ($null -eq $lastValue) {
+                Write-Host "[$ts] $ParameterName = $current"
+            }
+            elseif ($current -ne $lastValue) {
+                Write-Host "[$ts] $ParameterName changed: '$lastValue' -> '$current'" -ForegroundColor Yellow
+                try { [console]::Beep(1000,200) } catch {}
+            }
+            else {
+                Write-Host "[$ts] unchanged ($current)" -ForegroundColor DarkGray
+            }
+
+            $lastValue = $current
+        }
+        catch {
+            Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] ERROR: $($_.Exception.Message)" -ForegroundColor Red
+        }
+
+        Start-Sleep -Seconds $PollSeconds
+    }
+}
+catch {
+    Write-Host "Startup failed: $($_.Exception.Message)" -ForegroundColor Red
+    exit 1
+}
+
+
+
