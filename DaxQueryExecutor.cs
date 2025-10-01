@@ -131,3 +131,163 @@ catch {
 
 
 
+<#
+.SYNOPSIS
+  Monitor a Power BI (XMLA) Power Query parameter and highlight changes.
+
+.PREREQS
+  1) Premium/Fabric capacity with XMLA Read (at least) enabled for the workspace.
+  2) PowerShell 7+ recommended (Windows PowerShell works too).
+  3) Install once:
+       Install-Module SqlServer -Scope CurrentUser
+     (Provides Invoke-ASCmd which can connect to XMLA.)
+  4) You must have permission to the dataset.
+
+.USAGE
+  - Set $WorkspaceConnection (XMLA server), $DatasetName, and $ParameterName.
+  - Run the script; an AAD sign-in prompt will appear.
+  - Ctrl+C to stop.
+#>
+
+# ------------- CONFIG -------------
+# XMLA endpoint to your workspace (see Workspace Settings > Premium > XMLA)
+# e.g. "powerbi://api.powerbi.com/v1.0/myorg/Your Workspace"
+$WorkspaceConnection = "powerbi://api.powerbi.com/v1.0/myorg/Your Workspace"
+
+# Dataset (Initial Catalog) name exactly as in the Service
+$DatasetName   = "My Dataset Name"
+
+# Power Query parameter name exactly as defined in the model
+$ParameterName = "MyParameter"
+
+# Poll interval (seconds)
+$PollSeconds   = 30
+# -----------------------------------
+
+Import-Module SqlServer -ErrorAction Stop
+
+function Invoke-XmlaDmv {
+    param(
+        [Parameter(Mandatory=$true)][string]$Query
+    )
+    # Use Invoke-ASCmd via the XMLA endpoint; AAD interactive auth will pop as needed.
+    $cs = "Data Source=$WorkspaceConnection;Initial Catalog=$DatasetName"
+    $xml = Invoke-ASCmd -ConnectionString $cs -Query $Query -ErrorAction Stop
+    if (-not $xml) { throw "No response from XMLA DMV." }
+    try { return [xml]$xml } catch { throw "Failed to parse XMLA response as XML. $_" }
+}
+
+function Get-MParameterValue {
+    param([string]$ParamName)
+
+    # Primary: new-ish DMV that exposes Power Query parameters (including current value).
+    # If your workspace/dataset doesn’t surface this DMV, we’ll fall back to EXPRESSION parsing below.
+    $q = @"
+SELECT
+    [ID],
+    [Name],
+    [Type],
+    [IsRequired],
+    [IsQueryParameter],
+    [CurrentValue],
+    [DefaultValue]
+FROM $SYSTEM.TMSCHEMA_M_PARAMETERS
+"@
+
+    try {
+        $xml = Invoke-XmlaDmv -Query $q
+        $rows = $xml.return.root.row
+        if ($rows) {
+            $row = $rows | Where-Object { $_.Name -eq $ParamName } | Select-Object -First 1
+            if ($row -and $row.CurrentValue) {
+                # Many models store current value as a scalar string in CurrentValue
+                return [string]$row.CurrentValue
+            }
+        }
+    } catch {
+        # DMV might not exist in older models/compat levels; we’ll try a fallback below.
+        Write-Host "TMSCHEMA_M_PARAMETERS not available; falling back to EXPRESSION parsing..." -ForegroundColor DarkYellow
+    }
+
+    # Fallback: read shared expressions and try to extract parameter value from the M body.
+    # Parameters typically show up as Expressions of Kind='M' with an M record like:
+    # "let Param = ... in Param" or a record describing the parameter.
+    $q2 = @"
+SELECT
+    [ID],
+    [Name],
+    [Kind],
+    [Expression]
+FROM $SYSTEM.TMSCHEMA_EXPRESSIONS
+"@
+    $xml2 = Invoke-XmlaDmv -Query $q2
+    $rows2 = $xml2.return.root.row
+    if (-not $rows2) { throw "No expressions found via TMSCHEMA_EXPRESSIONS; cannot locate parameter '$ParamName'." }
+
+    $expr = $rows2 | Where-Object { $_.Name -eq $ParamName -and $_.Kind -eq 'M' } | Select-Object -First 1
+    if (-not $expr) { throw "Parameter-like expression '$ParamName' not found." }
+
+    $m = [string]$expr.Expression
+
+    # Heuristic extraction:
+    # Try to capture something like:
+    #   "let ... = ""VALUE"" in ..."
+    #   "let ... = 123 in ..."
+    #   Or a record [ CurrentValue = "VALUE", ... ]
+    # We’ll attempt simple regex patterns, falling back to raw M if we can’t guess a scalar.
+    $patterns = @(
+        '(?is)CurrentValue\s*=\s*"([^"]+)"',       # record style string
+        '(?is)CurrentValue\s*=\s*([0-9\.\-]+)',    # record style number
+        '(?is)let\s+[^\=]+\=\s*"([^"]+)"\s*in',    # simple let-binding to a string
+        '(?is)let\s+[^\=]+\=\s*([0-9\.\-]+)\s*in'  # simple let-binding to a number
+    )
+
+    foreach ($p in $patterns) {
+        $mMatch = [regex]::Match($m, $p)
+        if ($mMatch.Success -and $mMatch.Groups.Count -ge 2) {
+            return $mMatch.Groups[1].Value
+        }
+    }
+
+    # Last resort: return trimmed M body (so at least you can see *something* changed).
+    return ($m -replace '\s+',' ' | ForEach-Object { $_.Trim() })
+}
+
+# --------------- MAIN ---------------
+Write-Host "Connecting to XMLA: $WorkspaceConnection" -ForegroundColor Cyan
+Write-Host "Dataset (Initial Catalog): $DatasetName" -ForegroundColor Cyan
+Write-Host "Monitoring parameter: $ParameterName" -ForegroundColor Cyan
+Write-Host "Polling every $PollSeconds seconds. Ctrl+C to stop." -ForegroundColor DarkCyan
+
+$last = $null
+
+while ($true) {
+    try {
+        $now = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+        $val = Get-MParameterValue -ParamName $ParameterName
+
+        if ($null -eq $last) {
+            Write-Host "[$now] $ParameterName = $val"
+        }
+        elseif ($val -ne $last) {
+            Write-Host "[$now] $ParameterName changed: '$last' -> '$val'" -ForegroundColor Yellow
+            try { [console]::Beep(1200, 200) } catch {}
+        }
+        else {
+            Write-Host "[$now] unchanged ($val)" -ForegroundColor DarkGray
+        }
+
+        $last = $val
+    }
+    catch {
+        Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] ERROR: $($_.Exception.Message)" -ForegroundColor Red
+    }
+
+    Start-Sleep -Seconds $PollSeconds
+}
+
+
+
+
+
+
