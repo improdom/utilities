@@ -1,23 +1,7 @@
-Unique identifiers for model relationships
-Power BI’s star schema guidance states that when your dimension table doesn’t have a natural unique key, you should add a surrogate key to serve as the “one” side of relationships. 
-Microsoft Learn
+https://www.kimballgroup.com/1998/05/surrogate-keys
 
-Dimensional modeling foundation
-Ralph Kimball’s canonical work argues that “every join between dimension tables and fact tables … should be based on surrogate keys, not natural keys.” 
-Kimball Group
-+1
+https://medium.com/microsoft-power-bi/improve-your-power-bi-report-performance-with-whole-number-surrogate-key-8d5fe70fccdf
 
-Better performance in Power BI
-Using numeric surrogate keys (versus wide, composite business keys) improves join performance and reduces memory usage in BI contexts. 
-Medium
-+1
+https://community.fabric.microsoft.com/t5/Desktop/Model-Design-Using-a-Surrogate-Key/td-p/3132936
 
-Practical examples in Power BI / community practice
-The Power BI community forum discusses creating a surrogate key in a dimension and merging it into the fact, exactly the pattern I’m proposing. 
-Power BI Community
-
-In hybrid scenarios (Import + DirectQuery), folks use surrogate keys via Power Query merges to maintain consistency. 
-Microsoft Fabric Community
-
-Modern tooling and modeling patterns
-Tools like dbt (when used for dimensional modeling) recommend surrogate keys so that models have a clean, manageable join key.
+https://community.fabric.microsoft.com/t5/Desktop/Best-Approach-for-Handling-Surrogate-Keys-in-a-Hybrid-Power-BI/td-p/4418199
