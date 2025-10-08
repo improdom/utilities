@@ -1,7 +1,1 @@
-https://www.kimballgroup.com/1998/05/surrogate-keys
-
-https://medium.com/microsoft-power-bi/improve-your-power-bi-report-performance-with-whole-number-surrogate-key-8d5fe70fccdf
-
-https://community.fabric.microsoft.com/t5/Desktop/Model-Design-Using-a-Surrogate-Key/td-p/3132936
-
-https://community.fabric.microsoft.com/t5/Desktop/Best-Approach-for-Handling-Surrogate-Keys-in-a-Hybrid-Power-BI/td-p/4418199
+We’ve discussed surrogate keys several times as a proven way to optimize model size and performance in both Power BI and Databricks. With the continued growth in data volume, it’s important to put this into practice for the new dimension tables we are building. Surrogate keys will help us reduce redundancy, improve query performance, and load more attributes efficiently into memory.
