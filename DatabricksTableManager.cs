@@ -1,34 +1,28 @@
-# Databricks / PySpark notebook
-# Purpose: analyze fact + dimension relationships and classify columns into
-#          CORE (keep in main dimension) vs AGG_CANDIDATE (move to aggregation/ext dim)
-# Author: Julio Diaz
-# ------------------------------------------------------------------------------
-
+# Databricks / PySpark
 from pyspark.sql import functions as F
-import re
+import math, re
 
-# =============================================================================
-# CONFIGURATION
-# =============================================================================
+# =========================
+# CONFIG
+# =========================
+fact_table = "pbi_synpoc2.fact_risk_results_v2"
 
-fact_table = "pbi_synpoc2.fact_risk_results_v2"  # <-- update to your fact table
+# Each entry: dimension table, fact FK, dimension PK
 dimensions = [
-    {"name": "pbi_synpoc2.dim_position",  "fact_fk": "pbi_pos_id",  "dim_key": "pbi_pos_id"},
-    {"name": "pbi_synpoc2.dim_product",   "fact_fk": "pbi_prod_id", "dim_key": "pbi_prod_id"},
-    # Add more dimensions here as needed
+    {"name": "pbi_synpoc2.dim_position", "fact_fk": "pbi_pos_id",  "dim_key": "pbi_pos_id"},
+    {"name": "pbi_synpoc2.dim_product",  "fact_fk": "pbi_prod_id", "dim_key": "pbi_prod_id"},
+    # add more…
 ]
 
-# Exclude technical columns
+# Columns to ignore (keys/technical/audit)
 EXCLUDE_RE = re.compile(r"(?i)^(row_.*|.*_id|.*_key|hash.*|create.*|update.*|insert.*|_.*)$")
 
-# Optional sampling for large facts
-FACT_SAMPLE = None   # e.g., 0.1 for 10% sample
+# ---- Performance knobs ----
+SAMPLE_TARGET_ROWS = 5_000_000     # aim to sample ~5M fact rows; tune to your cluster
+MAX_CARD_FOR_SCORING = 5000        # skip columns above this (near-unique, bad slicers)
+BROADCAST_DIM_KEYS = True          # broadcast just the PK list for fast coverage calc
 
-MAX_CARD_FOR_SCORING = 2000  # skip columns above this cardinality (too unique)
-
-# =============================================================================
-# POLICY THRESHOLDS (you can tune)
-# =============================================================================
+# ---- Policy thresholds (same spirit as before; tune to your needs) ----
 CORE_MIN_CONTRIB        = 0.35
 CORE_MIN_COVERAGE       = 0.70
 CORE_MAX_DISTINCT_RATIO = 0.50
@@ -38,16 +32,26 @@ AGG_MAX_CONTRIB         = 0.15
 AGG_MIN_NULL_RATE       = 0.30
 AGG_MIN_DISTINCT_RATIO  = 0.10
 
-# =============================================================================
-# LOAD FACT TABLE
-# =============================================================================
-fact_df = spark.table(fact_table)
-if FACT_SAMPLE and 0 < FACT_SAMPLE < 1:
-    fact_df = fact_df.sample(False, FACT_SAMPLE, seed=42)
+# =========================
+# SPARK SETTINGS (optional)
+# =========================
+spark.conf.set("spark.sql.adaptive.enabled", "true")
+spark.conf.set("spark.sql.shuffle.partitions", "200")  # adjust to cluster size
 
-total_fact_rows = fact_df.count()
-if total_fact_rows == 0:
-    raise ValueError("Fact table is empty or sampling too low.")
+# =========================
+# LOAD & SAMPLE FACT
+# =========================
+fact = spark.table(fact_table).cache()
+total_fact_rows = fact.count()
+
+sample_frac = min(1.0, SAMPLE_TARGET_ROWS / total_fact_rows) if total_fact_rows else 1.0
+fact_s = fact.sample(False, sample_frac, seed=42).cache()
+sampled_fact_rows = fact_s.count()
+if sampled_fact_rows == 0:
+    raise ValueError("Fact sample is empty; increase SAMPLE_TARGET_ROWS.")
+
+def log2(x: float) -> float:
+    return math.log(x, 2) if x and x > 0 else 0.0
 
 def log2_col(c):
     return F.log(c) / F.log(F.lit(2.0))
@@ -55,130 +59,122 @@ def log2_col(c):
 dimension_scores = []
 column_recos = []
 
-# =============================================================================
-# MAIN LOOP
-# =============================================================================
 for dim in dimensions:
-    dim_name = dim["name"]
-    fk = dim["fact_fk"]
-    dk = dim["dim_key"]
-
+    dim_name = dim["name"]; fk = dim["fact_fk"]; dk = dim["dim_key"]
     dim_df = spark.table(dim_name)
-    dim_schema = dict(dim_df.dtypes)
 
-    # Columns to analyze (exclude keys/technical)
+    # Candidate columns = non-key, not excluded
     candidate_cols = [c for c in dim_df.columns if c.lower() != dk.lower() and not EXCLUDE_RE.match(c)]
-
-    # ---- Alias fix: avoid ambiguous column names ----
-    dim_key_alias = f"__{dk}_dim"
-    dim_col_alias = {c: f"__d_{c}" for c in candidate_cols}
-
-    dim_sel = [F.col(dk).alias(dim_key_alias)] + [F.col(c).alias(dim_col_alias[c]) for c in candidate_cols]
-    f = fact_df.alias("f")
-    d = dim_df.select(*dim_sel).alias("d")
-
-    joined = f.join(d, F.col(f"f.{fk}") == F.col(f"d.{dim_key_alias}"), "left").cache()
-
-    matched_rows = joined.where(F.col(dim_key_alias).isNotNull()).count()
-    coverage_pct = matched_rows / total_fact_rows if total_fact_rows else 0.0
-    fk_null_rows = fact_df.where(F.col(fk).isNull()).count()
-    fk_distinct = fact_df.select(fk).distinct().count()
-    avg_fact_per_dim_member = matched_rows / fk_distinct if fk_distinct else None
-
-    if matched_rows == 0:
-        dimension_scores.append({
-            "dimension": dim_name,
-            "coverage_pct": 0.0,
-            "best_column": None,
-            "best_score": 0.0
-        })
+    if not candidate_cols:
         continue
 
-    matched = joined.where(F.col(dim_key_alias).isNotNull()).cache()
-    matched_count = matched_rows
+    # ---- Coverage (fast path): left-semi on keys ONLY, using broadcast of PK list ----
+    keys_df = dim_df.select(dk).distinct()
+    if BROADCAST_DIM_KEYS:
+        from pyspark.sql.functions import broadcast
+        keys_df = broadcast(keys_df)
+
+    matched_keys = fact_s.select(fk).join(keys_df, on=(fact_s[fk] == keys_df[dk]), how="left_semi")
+    matched_sample_rows = matched_keys.count()
+    coverage_pct = matched_sample_rows / sampled_fact_rows if sampled_fact_rows else 0.0
+
+    # ---- Join the sample to dimension attributes (only columns we need) with aliases (avoid ambiguity) ----
+    dim_key_alias = f"__{dk}_dim"
+    dim_col_alias = {c: f"__d_{c}" for c in candidate_cols}
+    dim_sel = [F.col(dk).alias(dim_key_alias)] + [F.col(c).alias(dim_col_alias[c]) for c in candidate_cols]
+
+    f = fact_s.alias("f")
+    d = dim_df.select(*dim_sel).alias("d")
+    joined = f.join(d, F.col(f"f.{fk}") == F.col(f"d.{dim_key_alias}"), "left").where(F.col(dim_key_alias).isNotNull()).cache()
+    joined_rows = matched_sample_rows  # same as coverage numerator
+
+    # If nothing matched in the sample, skip this dimension
+    if joined_rows == 0:
+        dimension_scores.append({"dimension": dim_name, "coverage_pct": 0.0, "best_column": None, "best_score": 0.0})
+        continue
+
+    # ---- Score each column with CHEAP metrics (no full groupBy entropy) ----
+    # We use:
+    #   approx_card = approx_count_distinct
+    #   distinct_ratio = approx_card / joined_rows
+    #   null_rate
+    #   segmentation_proxy = log2(approx_card) / log2(min(MAX_CARD_FOR_SCORING, joined_rows))
+    #   contribution = coverage_pct * segmentation_proxy
+    col_entries = []
+
+    denom_for_entropy = log2(min(MAX_CARD_FOR_SCORING, joined_rows))
+    if denom_for_entropy == 0: denom_for_entropy = 1.0  # safety
 
     for c in candidate_cols:
-        c_alias = dim_col_alias[c]
+        ca = dim_col_alias[c]
 
-        approx_card = matched.agg(F.approx_count_distinct(F.col(c_alias)).alias("card")).first()["card"]
+        approx_card = joined.agg(F.approx_count_distinct(F.col(ca)).alias("card")).first()["card"]
         if not approx_card or approx_card <= 1 or approx_card > MAX_CARD_FOR_SCORING:
+            # skip near-unique or useless for slicing
             continue
 
-        dist = matched.groupBy(F.col(c_alias)).agg(F.count("*").alias("cnt")).withColumn("p", F.col("cnt") / matched_count)
-        entropy = dist.select((-F.sum(F.col("p") * log2_col(F.col("p")))).alias("entropy")).first()["entropy"]
-        max_entropy = (F.log(F.lit(approx_card)) / F.log(F.lit(2.0))).collect()[0][0]
-        norm_entropy = float(entropy) / float(max_entropy) if max_entropy else 0.0
+        null_rate = joined.select(F.count(F.when(F.col(ca).isNull(), 1)).alias("n")).first()["n"] / joined_rows
+        distinct_ratio = approx_card / joined_rows
 
-        null_rate = matched.select(F.count(F.when(F.col(c_alias).isNull(), 1)).alias("nulls")).first()["nulls"] / matched_count
-        distinct_ratio = approx_card / matched_count
+        segmentation_proxy = log2(approx_card) / denom_for_entropy  # 0..1-ish
+        segmentation_proxy = float(max(0.0, min(1.0, segmentation_proxy)))
 
-        contrib = float(coverage_pct) * float(norm_entropy)
+        contribution = float(coverage_pct) * float(segmentation_proxy)
 
-        # ---- Classification ----
+        # Classify
         is_core = (
-            contrib >= CORE_MIN_CONTRIB and
-            coverage_pct >= CORE_MIN_COVERAGE and
-            distinct_ratio <= CORE_MAX_DISTINCT_RATIO and
-            null_rate <= CORE_MAX_NULL_RATE
+            (contribution >= CORE_MIN_CONTRIB) and
+            (coverage_pct >= CORE_MIN_COVERAGE) and
+            (distinct_ratio <= CORE_MAX_DISTINCT_RATIO) and
+            (null_rate <= CORE_MAX_NULL_RATE)
         )
-
         is_agg = (
-            contrib < AGG_MAX_CONTRIB or
-            null_rate >= AGG_MIN_NULL_RATE or
-            distinct_ratio <= AGG_MIN_DISTINCT_RATIO
+            (contribution < AGG_MAX_CONTRIB) or
+            (null_rate >= AGG_MIN_NULL_RATE) or
+            (distinct_ratio <= AGG_MIN_DISTINCT_RATIO)
         )
+        label = "CORE" if (is_core and not is_agg) else ("AGG_CANDIDATE" if (is_agg and not is_core) else "NEUTRAL")
 
-        label = "CORE" if is_core and not is_agg else "AGG_CANDIDATE" if is_agg else "NEUTRAL"
-
-        column_recos.append({
+        col_entries.append({
             "dimension": dim_name,
             "column": c,
             "approx_cardinality": int(approx_card),
-            "coverage_pct": coverage_pct,
-            "normalized_entropy": norm_entropy,
-            "contribution_score": contrib,
-            "null_rate": null_rate,
-            "distinct_ratio": distinct_ratio,
+            "coverage_pct": float(coverage_pct),
+            "segmentation_proxy": float(segmentation_proxy),
+            "contribution_score": float(contribution),
+            "null_rate": float(null_rate),
+            "distinct_ratio": float(distinct_ratio),
             "recommendation": label
         })
 
-    # Best column for dimension summary
-    best_col = max(
-        [cr for cr in column_recos if cr["dimension"] == dim_name],
-        key=lambda x: x["contribution_score"],
-        default=None
-    )
+    # Store per-dimension summary
+    if col_entries:
+        best = max(col_entries, key=lambda x: x["contribution_score"])
+        dimension_scores.append({"dimension": dim_name, "coverage_pct": float(coverage_pct),
+                                 "best_column": best["column"], "best_score": float(best["contribution_score"])})
+        column_recos.extend(col_entries)
+    else:
+        dimension_scores.append({"dimension": dim_name, "coverage_pct": float(coverage_pct),
+                                 "best_column": None, "best_score": 0.0})
 
-    dimension_scores.append({
-        "dimension": dim_name,
-        "coverage_pct": coverage_pct,
-        "best_column": best_col["column"] if best_col else None,
-        "best_score": best_col["contribution_score"] if best_col else 0.0
-    })
-
-# =============================================================================
+# =========================
 # OUTPUTS
-# =============================================================================
+# =========================
 dim_df = spark.createDataFrame(dimension_scores)
-col_df = spark.createDataFrame(column_recos)
+col_df = spark.createDataFrame(column_recos) if column_recos else spark.createDataFrame([], "dimension STRING, column STRING, approx_cardinality INT, coverage_pct DOUBLE, segmentation_proxy DOUBLE, contribution_score DOUBLE, null_rate DOUBLE, distinct_ratio DOUBLE, recommendation STRING")
 
-# 1️⃣ Dimension-level ranking
 display(dim_df.orderBy(F.col("best_score").desc()))
-
-# 2️⃣ Column-level detailed ranking
 display(col_df.orderBy(F.col("contribution_score").desc()))
 
-# 3️⃣ Aggregation candidates
-agg_candidates = col_df.where(F.col("recommendation") == "AGG_CANDIDATE").orderBy(F.col("contribution_score").asc())
-display(agg_candidates)
-
-# 4️⃣ Core dimension columns
-core_cols = col_df.where(F.col("recommendation") == "CORE").orderBy(F.col("contribution_score").desc())
+agg_cols = col_df.where(F.col("recommendation") == F.lit("AGG_CANDIDATE")).orderBy(F.col("contribution_score").asc())
+core_cols = col_df.where(F.col("recommendation") == F.lit("CORE")).orderBy(F.col("contribution_score").desc())
+display(agg_cols)
 display(core_cols)
 
+print(f"Sampled {sampled_fact_rows:,} / {total_fact_rows:,} fact rows (fraction ~{sample_frac:.4f}).")
 print("""
-✅ Interpretation:
-- CORE → keep in primary dimension (joined to DirectQuery detail).
-- AGG_CANDIDATE → move to smaller, low-cardinality dimension (linked to Import aggregation table).
-Tune thresholds in the policy section to refine behavior.
+Interpretation:
+- contribution_score ≈ coverage × segmentation_proxy, where segmentation_proxy uses log-cardinality (no heavy shuffles).
+- CORE → keep in primary dim (DQ path). AGG_CANDIDATE → move to ext/aggregation dim (Import agg path).
+- Raise SAMPLE_TARGET_ROWS or lower MAX_CARD_FOR_SCORING if you want finer ranking; results should stabilize quickly.
 """)
