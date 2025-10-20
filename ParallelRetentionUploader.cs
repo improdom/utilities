@@ -1,40 +1,64 @@
-using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Threading.Tasks;
-
-public class ParallelRetentionUploader
-{
-    private readonly RetentionDataAppender _dataAppender;
-
-    public int MaxDegreeOfParallelism { get; set; } = 5;
-    public Action<string> Logger { get; set; } = Console.WriteLine;
-
-    public ParallelRetentionUploader(RetentionDataAppender dataAppender)
-    {
-        _dataAppender = dataAppender ?? throw new ArgumentNullException(nameof(dataAppender));
-    }
-
-    public async Task UploadDatasetsAsync(IEnumerable<(string Database, string Table, DataTable Data)> datasets)
-    {
-        var options = new ParallelOptions
-        {
-            MaxDegreeOfParallelism = MaxDegreeOfParallelism
-        };
-
-        await Parallel.ForEachAsync(datasets, options, async (dataset, cancellationToken) =>
-        {
-            try
-            {
-                Logger?.Invoke($"Starting upload for {dataset.Table}...");
-                await _dataAppender.AppendDataAsync(dataset.Database, dataset.Table, dataset.Data);
-                Logger?.Invoke($"Upload completed for {dataset.Table}.");
-            }
-            catch (Exception ex)
-            {
-                Logger?.Invoke($"Error uploading {dataset.Table}: {ex.Message}");
-                throw;
-            }
-        });
-    }
-}
+SELECT
+    cob_date_id,
+    business_date,
+    event_run_time_id,
+    source_system_id,
+    measure_id,
+    scenario_id,
+    pbi_rm_book_mapping_id,
+    pbi_gers_le_hierarchy_id,
+    pbi_instrument_mapping_id,
+    pbi_issuer_mapping_id,
+    pbi_pos_instrument_mapping_id,
+    rfi_risk_factor_bucket_tactical_id,
+    rfi_risk_factor_id_1,
+    pbi_rf1_id,
+    pbi_rf1_id_2,
+    rfi_risk_factor_id_2,
+    pbi_rf2_id,
+    pbi_rf2_id_2,
+    pbi_pos_mod_id_1,
+    pbi_pos_mod_id_8,
+    position_id,
+    position_key,
+    dim_risk_fact_pmp_id,
+    reporting_ccy,
+    rfi_1x_single_country_of_risk_code,
+    rfi_country_of_risk_code,
+    rfi_risk_factor_bucket_tactical_id,
+    rfi_1x_single_rating,
+    COUNT(*) AS duplicate_count,
+    SUM(reporting_value) AS total_reporting_value
+FROM hive.metastore.arc_d_bold.pbi_synpoc2_fact_risk_results
+WHERE cob_date_id = 20251010
+  AND event_run_time_id = 925998015532
+GROUP BY
+    cob_date_id,
+    business_date,
+    event_run_time_id,
+    source_system_id,
+    measure_id,
+    scenario_id,
+    pbi_rm_book_mapping_id,
+    pbi_gers_le_hierarchy_id,
+    pbi_instrument_mapping_id,
+    pbi_issuer_mapping_id,
+    pbi_pos_instrument_mapping_id,
+    rfi_risk_factor_bucket_tactical_id,
+    rfi_risk_factor_id_1,
+    pbi_rf1_id,
+    pbi_rf1_id_2,
+    rfi_risk_factor_id_2,
+    pbi_rf2_id,
+    pbi_rf2_id_2,
+    pbi_pos_mod_id_1,
+    pbi_pos_mod_id_8,
+    position_id,
+    position_key,
+    dim_risk_fact_pmp_id,
+    reporting_ccy,
+    rfi_1x_single_country_of_risk_code,
+    rfi_country_of_risk_code,
+    rfi_risk_factor_bucket_tactical_id,
+    rfi_1x_single_rating
+HAVING COUNT(*) > 1;
