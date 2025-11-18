@@ -1,11 +1,20 @@
-Strengths and Achievements
+Hi Farhan,
 
-Demonstrated solid technical knowledge and commitment to modernization efforts. Maintained professionalism and collaboration across teams while supporting key initiatives. Showed initiative in developing AI and automation capabilities, aligning with UBS’s innovation goals.
+Thanks for the update.
 
-Development Areas (Needs Focus)
+We’ll proceed with setting up the projects and deployment pipelines.
 
-Focus is needed on improving consistency in delivery, prioritization, and communication. Strengthening planning discipline, follow-through, and proactive risk management will help achieve objectives more effectively. Continued learning in AI, automation, and data analytics will also enhance long-term impact.
+We will also need to create new dedicated service accounts for the different environments, as listed below:
 
-UBS Behaviors (Expected)
+Environment	Service Account Name
+APP-DEV	SVC_DEV_MARVEL_CUBIQ
+TEST	SVC_TEST_MARVEL_CUBIQ
+PRE-PROD	SVC_PREPROD_MARVEL_CUBIQ
+PROD	SVC_PROD_MARVEL_CUBIQ
 
-Consistently demonstrated UBS values through collaboration, integrity, and accountability. Worked effectively with colleagues and maintained a constructive and professional approach. Behavioral expectations for the role were met, contributing positively to the team environment.
+Once created, these accounts will require access to the necessary systems (Power BI Nodes and Gateways, Databricks, SQL MI, etc.). We can begin provisioning access in parallel while the dependent components are being established.
+
+Please ensure the service account names follow the standard naming convention.
+
+Thanks,
+Julio Díaz
