@@ -1,1 +1,1 @@
-I met risk management expectations by completing required controls, documentation, and mandatory activities accurately and on time. I raised issues and dependencies appropriately and ensured my work followed UBS policies, standards, and regulatory requirements.
+Over the year, I took responsibility for my work, followed through on commitments, and ensured tasks were completed accurately and on time. I acted when issues arose, escalated when needed, and maintained a professional and transparent approach in my decisions and communication.
