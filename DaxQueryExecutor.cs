@@ -1,20 +1,23 @@
-Hi Farhan,
+Hi Anupam,
 
-Thanks for the update.
+Let me clarify how we’re thinking about this.
 
-We’ll proceed with setting up the projects and deployment pipelines.
+For CubIQ we still treat Event Radar as the single source of truth for activity status. The existing Azure Function that reads from the Marvel consumer group and writes into the Event Radar DB will continue to provide the status that feeds the Marvel status screens, orchestration views, and report-readiness visuals. In the interim, ARC Orchestrator is only used to drive CubIQ component execution; it will not bypass Event Radar or introduce a separate “half and half” status path. FO events continue to come from ARC, and node/readiness events are still pushed via Marvel into Event Radar and then surfaced in Marvel reports.
 
-We will also need to create new dedicated service accounts for the different environments, as listed below:
+The reason we’re proposing to rework the current implementation is that, while it works today as a simple Marvel-consumer-to-Event-Radar writer, it doesn’t cover several behaviours we now need for CubIQ:
 
-Environment	Service Account Name
-APP-DEV	SVC_DEV_MARVEL_CUBIQ
-TEST	SVC_TEST_MARVEL_CUBIQ
-PRE-PROD	SVC_PREPROD_MARVEL_CUBIQ
-PROD	SVC_PROD_MARVEL_CUBIQ
+A more generic capability to raise/publish events from multiple components, not just the current Marvel flow.
 
-Once created, these accounts will require access to the necessary systems (Power BI Nodes and Gateways, Databricks, SQL MI, etc.). We can begin provisioning access in parallel while the dependent components are being established.
+Event aggregation based on weight/size, so very large or numerous events can be split into separate batches instead of being processed in a single iteration.
 
-Please ensure the service account names follow the standard naming convention.
+Event orchestration in an event-driven way (pushing messages to consumers instead of relying on components continuously polling).
 
-Thanks,
-Julio Díaz
+Stronger resilience: centralised error handling, retries and failure tracking.
+
+Because event handling is central to the platform and we have limited development time, the plan is:
+
+keep the existing Azure Function path so that status and readiness for Event Radar/Marvel visuals remain intact,
+
+use ARC Orchestrator to unblock CubIQ development in the short term, and
+
+in parallel, have Mohan and Siva lead the re-implementation of this as a proper event service which will replace the current orchestration in mid-January, assuming development goes as planned
