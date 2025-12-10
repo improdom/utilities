@@ -1,9 +1,12 @@
-Team,
+Hi Siva, Suresh, and Pankaj,
 
-We see the need for a centralized place to aggregate logs from all CubIQ components. This would improve troubleshooting, give us unified visibility, and enable real-time monitoring through a single dashboard.
+Just to clarify my earlier note: I wasn’t referring to the traditional component-level logging frameworks—we can and should continue using those within each microservice.
 
-Since Marvel handles reporting and monitoring surfaces, it may make sense to integrate this capability there. Does Marvel already have an infrastructure we could leverage, or is it something we could extend jointly?
+What I meant is the centralized logging service that uses Application Insights as the backend. This is the pattern already adopted by other UBS teams and integrates smoothly with the existing support tooling for alerts, dashboards, and operational monitoring.
 
-Thanks,
+My intention is to ensure CubIQ aligns with that enterprise approach so support teams have a consolidated view across components.
+
+Happy to discuss further on the call.
+
+Regards,
 Julio
-
