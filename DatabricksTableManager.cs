@@ -1,3 +1,8 @@
-The code for the application that automates the Power BI semantic model deployment has now been pushed to the GitLab repository. It includes the complete deployment workflow: preparing the TMDL model, applying the required configuration through environment variables, and publishing the model using UBS Deploy as part of the GitLab pipeline.
+Team,
 
-The process runs end-to-end through CI/CD, ensuring consistent and repeatable deployments without manual steps. This brings our semantic-model deployment fully in line with CubIQ’s engineering standards.
+We see the need for a centralized place to aggregate logs from all CubIQ components. This would improve troubleshooting, give us unified visibility, and enable real-time monitoring through a single dashboard.
+
+Since Marvel handles reporting and monitoring surfaces, it may make sense to integrate this capability there. Does Marvel already have an infrastructure we could leverage, or would this require a new extension?
+
+Thanks,
+Julio
