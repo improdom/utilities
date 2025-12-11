@@ -20,3 +20,66 @@ FROM dbo.YourTable;
 
 reports.
 
+
+
+  
+USE YourDatabaseName;   -- change this
+GO
+
+IF OBJECT_ID('dbo.ExportTableAsCsv') IS NOT NULL
+    DROP PROC dbo.ExportTableAsCsv;
+GO
+
+CREATE PROC dbo.ExportTableAsCsv
+    @SchemaName sysname,
+    @TableName  sysname,
+    @Where      nvarchar(max) = NULL   -- optional filter, e.g. N'WHERE is_active = ''Y'''
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @FullName nvarchar(400) =
+        QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@TableName);
+
+    IF OBJECT_ID(@FullName) IS NULL
+    BEGIN
+        RAISERROR('Table %s does not exist', 16, 1, @FullName);
+        RETURN;
+    END
+
+    /* Build header: "col1","col2",... */
+    DECLARE @Header nvarchar(max);
+
+    SELECT @Header = STUFF((
+        SELECT ',' + QUOTENAME(c.name, '"')
+        FROM sys.columns c
+        WHERE c.object_id = OBJECT_ID(@FullName)
+        ORDER BY c.column_id
+        FOR XML PATH(''), TYPE).value('.', 'nvarchar(max)')
+    , 1, 1, '');
+
+    /* Build data line: "val1","val2",... with " escaped as "" */
+    DECLARE @SelectList nvarchar(max);
+
+    SELECT @SelectList = STUFF((
+        SELECT ',' +
+           'ISNULL(''""'' + REPLACE(CAST(' + QUOTENAME(c.name) +
+           ' AS nvarchar(max)), ''"'' , ''""'') + ''""'', ''""'')'
+        FROM sys.columns c
+        WHERE c.object_id = OBJECT_ID(@FullName)
+        ORDER BY c.column_id
+        FOR XML PATH(''), TYPE).value('.', 'nvarchar(max)')
+    , 1, 1, '');
+
+    DECLARE @Sql nvarchar(max) = N'
+        SET NOCOUNT ON;
+        SELECT ''' + @Header + N''' AS CSV
+        UNION ALL
+        SELECT ' + @SelectList + N'
+        FROM ' + @FullName + N'
+        ' + COALESCE(@Where, N'') + N';';
+
+    EXEC sp_executesql @Sql;
+END
+GO
+
