@@ -1,180 +1,189 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SqlClient;
+using Microsoft.Data.SqlClient; // preferred
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace YourNamespace
 {
-    /// <summary>
-    /// Loads MRV mappings from SQL Server and offers fast filtering by:
-    ///   - rm_risk_measure_name
-    ///   - scenario_group
-    ///   - mdst_description
-    ///
-    /// Returns full row objects containing:
-    ///   - rm_seg
-    ///   - mrv_partition
-    ///   - fact_table_name
-    /// </summary>
-    public sealed class MrvPartitionCache
+    public sealed class MrvPartitionLookupCache
     {
-        private const string DefaultQuery = @"
-SELECT DISTINCT
-      a.rm_seg
-    , a.mrv_partition
-    , a.fact_table_name
-    , b.rm_risk_measure_name
-    , c.scenario_group
-    , d.mdst_description
-FROM [config].[risk_fact_partitions] a
-JOIN [config].[risk_measure_seg] b       ON a.rm_seg = b.rm_seg
-JOIN [config].[scenario_group_seg] c     ON a.sg_seg = c.sg_seg
-JOIN [config].[curve_quality_seg] d      ON a.cq_seg = d.cq_seg;
-";
+        // If you have a materialized map table, use it (FAST).
+        // If you don't, set UseMaterializedMapTable = false (it will use the join query).
+        public bool UseMaterializedMapTable { get; init; } = true;
+
+        // Optional TTL (e.g., TimeSpan.FromMinutes(30)). Set to null for "cache forever".
+        public TimeSpan? CacheTtl { get; init; } = TimeSpan.FromHours(1);
+
+        // Command timeout for SQL
+        public int CommandTimeoutSeconds { get; init; } = 60;
 
         private readonly string _connectionString;
-        private readonly string _query;
 
-        private volatile CacheSnapshot? _snapshot;
+        // Cache: key -> lazy task that loads once even under concurrency
+        private readonly ConcurrentDictionary<CacheKey, CacheEntry> _cache = new();
 
-        public MrvPartitionCache(string connectionString, string? queryOverride = null)
+        public MrvPartitionLookupCache(string connectionString)
         {
-            _connectionString = connectionString;
-            _query = queryOverride ?? DefaultQuery;
+            _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         }
 
-        // Represents a single row of mapping data
         public sealed class MrvPartitionInfo
         {
             public long Partition { get; init; }
             public long RmSeg { get; init; }
             public string FactTable { get; init; } = string.Empty;
+
             public string Measure { get; init; } = string.Empty;
             public string Scenario { get; init; } = string.Empty;
             public string Mdst { get; init; } = string.Empty;
         }
 
-        private sealed class CacheSnapshot
-        {
-            public IReadOnlyList<MrvPartitionInfo> Rows { get; }
-            public Dictionary<string, HashSet<int>> ByMeasure { get; }
-            public Dictionary<string, HashSet<int>> ByScenario { get; }
-            public Dictionary<string, HashSet<int>> ByMdst { get; }
+        private readonly record struct CacheKey(string? Measure, string? Scenario, string? Mdst);
 
-            public CacheSnapshot(
-                IReadOnlyList<MrvPartitionInfo> rows,
-                Dictionary<string, HashSet<int>> byMeasure,
-                Dictionary<string, HashSet<int>> byScenario,
-                Dictionary<string, HashSet<int>> byMdst)
+        private sealed class CacheEntry
+        {
+            public CacheEntry(Lazy<Task<IReadOnlyList<MrvPartitionInfo>>> loader, DateTimeOffset createdUtc)
             {
-                Rows = rows;
-                ByMeasure = byMeasure;
-                ByScenario = byScenario;
-                ByMdst = byMdst;
+                Loader = loader;
+                CreatedUtc = createdUtc;
             }
+
+            public Lazy<Task<IReadOnlyList<MrvPartitionInfo>>> Loader { get; }
+            public DateTimeOffset CreatedUtc { get; }
+        }
+
+        private static string? Normalize(string? s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return null;
+            return s.Trim();
         }
 
         /// <summary>
-        /// Loads & caches all MRV mapping rows from SQL.
+        /// Gets partitions for the provided filters. Results are cached per unique filter combination.
+        /// Filters are AND'ed together (only the provided filters apply).
         /// </summary>
-        public async Task LoadAsync(CancellationToken ct = default)
+        public Task<IReadOnlyList<MrvPartitionInfo>> GetAsync(
+            string? rmRiskMeasureName = null,
+            string? scenarioGroup = null,
+            string? mdstDescription = null,
+            CancellationToken ct = default)
         {
-            var rows = new List<MrvPartitionInfo>(capacity: 4096);
+            var key = new CacheKey(
+                Normalize(rmRiskMeasureName),
+                Normalize(scenarioGroup),
+                Normalize(mdstDescription)
+            );
 
-            var byMeasure = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
-            var byScenario = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
-            var byMdst = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
+            // Optional TTL eviction
+            if (CacheTtl is not null &&
+                _cache.TryGetValue(key, out var existing) &&
+                DateTimeOffset.UtcNow - existing.CreatedUtc > CacheTtl.Value)
+            {
+                _cache.TryRemove(key, out _);
+            }
+
+            var entry = _cache.GetOrAdd(
+                key,
+                k => new CacheEntry(
+                    new Lazy<Task<IReadOnlyList<MrvPartitionInfo>>>(
+                        () => LoadFromSqlAsync(k, ct),
+                        LazyThreadSafetyMode.ExecutionAndPublication),
+                    DateTimeOffset.UtcNow));
+
+            return entry.Loader.Value;
+        }
+
+        /// <summary>Optional: clear all cached results.</summary>
+        public void Clear() => _cache.Clear();
+
+        private async Task<IReadOnlyList<MrvPartitionInfo>> LoadFromSqlAsync(CacheKey key, CancellationToken ct)
+        {
+            // NOTE: If you have a materialized mapping table, this query is extremely fast with indexes.
+            // Recommended indexes:
+            //   (rm_risk_measure_name, scenario_group, mdst_description) INCLUDE (mrv_partition, rm_seg, fact_table_name)
+            //
+            // If not, we fall back to join + filters, still MUCH cheaper than full scan.
+            string sql = UseMaterializedMapTable
+                ? @"
+SELECT
+      rm_seg,
+      mrv_partition,
+      fact_table_name,
+      rm_risk_measure_name,
+      scenario_group,
+      mdst_description
+FROM config.mrv_partition_map
+WHERE (@measure IS NULL OR rm_risk_measure_name = @measure)
+  AND (@scenario IS NULL OR scenario_group = @scenario)
+  AND (@mdst IS NULL OR mdst_description = @mdst);
+"
+                : @"
+SELECT
+      a.rm_seg,
+      a.mrv_partition,
+      a.fact_table_name,
+      b.rm_risk_measure_name,
+      c.scenario_group,
+      d.mdst_description
+FROM [config].[risk_fact_partitions] a
+JOIN [config].[risk_measure_seg] b   ON a.rm_seg = b.rm_seg
+JOIN [config].[scenario_group_seg] c ON a.sg_seg = c.sg_seg
+JOIN [config].[curve_quality_seg] d  ON a.cq_seg = d.cq_seg
+WHERE (@measure IS NULL OR b.rm_risk_measure_name = @measure)
+  AND (@scenario IS NULL OR c.scenario_group = @scenario)
+  AND (@mdst IS NULL OR d.mdst_description = @mdst)
+GROUP BY
+      a.rm_seg,
+      a.mrv_partition,
+      a.fact_table_name,
+      b.rm_risk_measure_name,
+      c.scenario_group,
+      d.mdst_description;
+";
+
+            var rows = new List<MrvPartitionInfo>(capacity: 64);
 
             using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand(_query, conn);
-            await conn.OpenAsync(ct);
-
-            using var reader = await cmd.ExecuteReaderAsync(CommandBehavior.SequentialAccess, ct);
-
-            while (await reader.ReadAsync(ct))
+            using var cmd = new SqlCommand(sql, conn)
             {
-                var row = new MrvPartitionInfo
+                CommandType = CommandType.Text,
+                CommandTimeout = CommandTimeoutSeconds
+            };
+
+            cmd.Parameters.Add(new SqlParameter("@measure", SqlDbType.VarChar, 200) { Value = (object?)key.Measure ?? DBNull.Value });
+            cmd.Parameters.Add(new SqlParameter("@scenario", SqlDbType.VarChar, 200) { Value = (object?)key.Scenario ?? DBNull.Value });
+            cmd.Parameters.Add(new SqlParameter("@mdst", SqlDbType.VarChar, 200) { Value = (object?)key.Mdst ?? DBNull.Value });
+
+            await conn.OpenAsync(ct).ConfigureAwait(false);
+
+            // SequentialAccess is good when rows can be large; harmless here.
+            using var reader = await cmd.ExecuteReaderAsync(CommandBehavior.SequentialAccess, ct).ConfigureAwait(false);
+
+            int ordRmSeg = reader.GetOrdinal("rm_seg");
+            int ordPart = reader.GetOrdinal("mrv_partition");
+            int ordFact = reader.GetOrdinal("fact_table_name");
+            int ordMeasure = reader.GetOrdinal("rm_risk_measure_name");
+            int ordScenario = reader.GetOrdinal("scenario_group");
+            int ordMdst = reader.GetOrdinal("mdst_description");
+
+            while (await reader.ReadAsync(ct).ConfigureAwait(false))
+            {
+                rows.Add(new MrvPartitionInfo
                 {
-                    RmSeg = reader.GetInt64(reader.GetOrdinal("rm_seg")),
-                    Partition = reader.GetInt64(reader.GetOrdinal("mrv_partition")),
-                    FactTable = reader.GetString(reader.GetOrdinal("fact_table_name")).Trim(),
-                    Measure = reader.GetString(reader.GetOrdinal("rm_risk_measure_name")).Trim(),
-                    Scenario = reader.GetString(reader.GetOrdinal("scenario_group")).Trim(),
-                    Mdst = reader.GetString(reader.GetOrdinal("mdst_description")).Trim()
-                };
-
-                int index = rows.Count;
-                rows.Add(row);
-
-                // Build inverted indexes
-                if (!byMeasure.TryGetValue(row.Measure, out var mset))
-                    byMeasure[row.Measure] = mset = new HashSet<int>();
-                mset.Add(index);
-
-                if (!byScenario.TryGetValue(row.Scenario, out var sset))
-                    byScenario[row.Scenario] = sset = new HashSet<int>();
-                sset.Add(index);
-
-                if (!byMdst.TryGetValue(row.Mdst, out var dset))
-                    byMdst[row.Mdst] = dset = new HashSet<int>();
-                dset.Add(index);
+                    RmSeg = reader.GetInt64(ordRmSeg),
+                    Partition = reader.GetInt64(ordPart),
+                    FactTable = reader.GetString(ordFact).Trim(),
+                    Measure = reader.GetString(ordMeasure).Trim(),
+                    Scenario = reader.GetString(ordScenario).Trim(),
+                    Mdst = reader.GetString(ordMdst).Trim(),
+                });
             }
 
-            _snapshot = new CacheSnapshot(rows, byMeasure, byScenario, byMdst);
-        }
-
-        /// <summary>
-        /// Filters MRV partitions by any combination of:
-        ///   - measureName
-        ///   - scenarioGroup
-        ///   - mdstDescription
-        /// Returned objects include rm_seg and fact_table_name.
-        /// </summary>
-        public IReadOnlyList<MrvPartitionInfo> Get(
-            string? measureName = null,
-            string? scenarioGroup = null,
-            string? mdstDescription = null)
-        {
-            var snap = _snapshot ?? throw new InvalidOperationException("Cache not loaded.");
-
-            var sets = new List<HashSet<int>>(3);
-
-            if (!string.IsNullOrWhiteSpace(measureName))
-            {
-                if (!snap.ByMeasure.TryGetValue(measureName.Trim(), out var s))
-                    return Array.Empty<MrvPartitionInfo>();
-                sets.Add(s);
-            }
-
-            if (!string.IsNullOrWhiteSpace(scenarioGroup))
-            {
-                if (!snap.ByScenario.TryGetValue(scenarioGroup.Trim(), out var s))
-                    return Array.Empty<MrvPartitionInfo>();
-                sets.Add(s);
-            }
-
-            if (!string.IsNullOrWhiteSpace(mdstDescription))
-            {
-                if (!snap.ByMdst.TryGetValue(mdstDescription.Trim(), out var s))
-                    return Array.Empty<MrvPartitionInfo>();
-                sets.Add(s);
-            }
-
-            if (sets.Count == 0)
-                return Array.Empty<MrvPartitionInfo>(); // no filters
-
-            // Intersect smallest-to-largest
-            sets.Sort((a, b) => a.Count.CompareTo(b.Count));
-
-            var resultIdx = new HashSet<int>(sets[0]);
-            for (int i = 1; i < sets.Count; i++)
-                resultIdx.IntersectWith(sets[i]);
-
-            // materialize row objects
-            return resultIdx.Select(i => snap.Rows[i]).ToList();
+            return rows;
         }
     }
 }
