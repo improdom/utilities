@@ -182,3 +182,170 @@ public static class VaultSecretReader
         throw new InvalidOperationException("Could not find data.data.password in Vault secret response.");
     }
 }
+
+
+
+
+
+
+
+public static class VaultClientNet40
+{
+    public static string GetSecret(
+        string vaultUrl,
+        string vaultNamespace,
+        string vaultCertName,
+        string vaultSecretPath,
+        string certificateSubjectContains)
+    {
+        // PowerShell equivalent:
+        // [Net.ServicePointManager]::SecurityProtocol = Tls12
+        ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+
+        var cert = LoadCertificateFromLocalMachine(certificateSubjectContains);
+
+        // -------------------------
+        // 1) LOGIN (POST)
+        // -------------------------
+        var loginUrl = vaultUrl.TrimEnd('/') + "/v1/auth/cert/login";
+
+        var loginBody = new
+        {
+            name = vaultCertName
+        };
+
+        string loginResponse = SendRequest(
+            url: loginUrl,
+            method: "POST",
+            jsonBody: Serialize(loginBody),
+            cert: cert,
+            headers: new WebHeaderCollection
+            {
+                { "X-Vault-Namespace", vaultNamespace }
+            }
+        );
+
+        var token = ExtractClientToken(loginResponse);
+
+        // -------------------------
+        // 2) READ SECRET (GET)
+        // -------------------------
+        var secretUrl = vaultUrl.TrimEnd('/') + "/v1/secret/data/" + vaultSecretPath.TrimStart('/');
+
+        string secretResponse = SendRequest(
+            url: secretUrl,
+            method: "GET",
+            jsonBody: null,
+            cert: cert,
+            headers: new WebHeaderCollection
+            {
+                { "X-Vault-Namespace", vaultNamespace },
+                { "X-Vault-Token", token }
+            }
+        );
+
+        var password = ExtractPassword(secretResponse);
+
+        return "SECRET: " + password;
+    }
+
+    // --------------------------------------------------------
+    // HTTP (HttpWebRequest – .NET 4.0 safe)
+    // --------------------------------------------------------
+    private static string SendRequest(
+        string url,
+        string method,
+        string jsonBody,
+        X509Certificate2 cert,
+        WebHeaderCollection headers)
+    {
+        var request = (HttpWebRequest)WebRequest.Create(url);
+        request.Method = method;
+        request.ContentType = "application/json";
+        request.Accept = "application/json";
+        request.ClientCertificates.Add(cert);
+
+        if (headers != null)
+            request.Headers.Add(headers);
+
+        if (!string.IsNullOrEmpty(jsonBody))
+        {
+            byte[] bodyBytes = Encoding.UTF8.GetBytes(jsonBody);
+            request.ContentLength = bodyBytes.Length;
+
+            using (var stream = request.GetRequestStream())
+            {
+                stream.Write(bodyBytes, 0, bodyBytes.Length);
+            }
+        }
+
+        try
+        {
+            using (var response = (HttpWebResponse)request.GetResponse())
+            using (var reader = new StreamReader(response.GetResponseStream()))
+            {
+                return reader.ReadToEnd();
+            }
+        }
+        catch (WebException ex)
+        {
+            using (var reader = new StreamReader(ex.Response.GetResponseStream()))
+            {
+                var error = reader.ReadToEnd();
+                throw new InvalidOperationException("Vault call failed:\n" + error, ex);
+            }
+        }
+    }
+
+    // --------------------------------------------------------
+    // CERTIFICATE (LocalMachine\My)
+    // --------------------------------------------------------
+    private static X509Certificate2 LoadCertificateFromLocalMachine(string subjectContains)
+    {
+        var store = new X509Store(StoreName.My, StoreLocation.LocalMachine);
+        store.Open(OpenFlags.ReadOnly);
+
+        var cert = store.Certificates
+            .Cast<X509Certificate2>()
+            .Where(c => c.Subject.IndexOf(subjectContains, StringComparison.OrdinalIgnoreCase) >= 0)
+            .OrderByDescending(c => c.NotAfter)
+            .FirstOrDefault();
+
+        store.Close();
+
+        if (cert == null)
+            throw new InvalidOperationException("Client certificate not found.");
+
+        if (!cert.HasPrivateKey)
+            throw new InvalidOperationException("Certificate has no private key.");
+
+        return cert;
+    }
+
+    // --------------------------------------------------------
+    // JSON helpers (JavaScriptSerializer)
+    // --------------------------------------------------------
+    private static string Serialize(object obj)
+    {
+        return new JavaScriptSerializer().Serialize(obj);
+    }
+
+    private static string ExtractClientToken(string json)
+    {
+        var serializer = new JavaScriptSerializer();
+        dynamic data = serializer.DeserializeObject(json);
+
+        // auth.client_token
+        return data["auth"]["client_token"];
+    }
+
+    private static string ExtractPassword(string json)
+    {
+        var serializer = new JavaScriptSerializer();
+        dynamic data = serializer.DeserializeObject(json);
+
+        // data.data.password
+        return data["data"]["data"]["password"];
+    }
+}
+
