@@ -452,3 +452,14 @@ public static class CertLoaderNet40
 }
 
 
+$pattern = "EVA_Cert"   # or part of CN you expect
+
+Get-ChildItem Cert:\LocalMachine\My |
+  Where-Object { $_.Subject -match $pattern } |
+  Select Subject, Thumbprint, HasPrivateKey
+
+Get-ChildItem Cert:\CurrentUser\My |
+  Where-Object { $_.Subject -match $pattern } |
+  Select Subject, Thumbprint, HasPrivateKey
+
+
