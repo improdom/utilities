@@ -65,3 +65,33 @@ LEFT JOIN [cubiq].[mrv_definition_group_filter] mdgf
     AND mdgf.grid_view IS NOT NULL
 LEFT JOIN [cubiq].[mrv_filter_definition] mfd
     ON  mdgf.filter_id = mfd.filter_id
+    AND mfd.is_active  = 'Y'
+LEFT JOIN [cubiq].[mrv_filter_value] mfv
+    ON mfv.filter_id = mfd.filter_id
+
+/* First md = attribute picked by mdgf.attribute_id */
+LEFT JOIN [cubiq].[mrv_measure_dimension] md_attr
+    ON  md_attr.attribute_id = mdgf.attribute_id
+    AND md_attr.is_active    = 'Y'
+
+LEFT JOIN [cubiq].[mrv_definition_group_filter] gf
+    ON  mrvdef.definition_group_id = gf.definition_group_id
+    AND gf.filter_dimension        = 'Dimension'
+
+/* In your screenshot the alias md is reused; SQL Server won’t allow that. */
+LEFT JOIN [cubiq].[mrv_measure_dimension] md_dim
+    ON  gf.attribute_id         = md_dim.attribute_id
+    AND ISNULL(md_dim.is_active, 'Y') = 'Y'
+
+LEFT JOIN [mr_agg_model_metadata].[mr_cdm_attributes_base] strategic_mbs
+    ON md_attr.dimension_name = strategic_mbs.dimension_name
+
+LEFT JOIN [mr_agg_model_metadata].[mr_cdm_attributes_base] mbs
+    ON  mbs.legacy_folder_name   = md_attr.dimension_name
+    AND ISNULL(mbs.is_active,'Y') = 'Y'
+    AND md_attr.attribute_name   = mbs.legacy_business_name
+    AND mbs.databricks_view_name = 'pbi_fact_risk_results_aggregated_vw'
+    AND mbs.hierarchy_ind        = 'N'
+    AND mbs.is_visible           = 'Y'
+
+WHERE mrvg.is_active = 'Y';
