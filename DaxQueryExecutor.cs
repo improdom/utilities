@@ -349,3 +349,106 @@ public static class VaultClientNet40
     }
 }
 
+
+using System;
+using System.Linq;
+using System.Security.Cryptography.X509Certificates;
+using System.Text;
+
+public static class CertLoaderNet40
+{
+    public static X509Certificate2 LoadClientCert(
+        string thumbprint = null,
+        string subjectContains = null)
+    {
+        // Try LocalMachine\My first, then CurrentUser\My
+        var cert = FindInStore(StoreLocation.LocalMachine, thumbprint, subjectContains)
+                ?? FindInStore(StoreLocation.CurrentUser, thumbprint, subjectContains);
+
+        if (cert == null)
+        {
+            throw new InvalidOperationException(
+                "Client certificate not found.\n" +
+                BuildStoreDebugDump(thumbprint, subjectContains));
+        }
+
+        if (!cert.HasPrivateKey)
+            throw new InvalidOperationException("Certificate was found but it has NO private key (Vault cert auth needs a private key).");
+
+        return cert;
+    }
+
+    private static X509Certificate2 FindInStore(StoreLocation location, string thumbprint, string subjectContains)
+    {
+        using (var store = new X509Store(StoreName.My, location))
+        {
+            store.Open(OpenFlags.ReadOnly);
+
+            X509Certificate2Collection matches;
+
+            if (!string.IsNullOrEmpty(thumbprint))
+            {
+                var norm = NormalizeThumbprint(thumbprint);
+                matches = store.Certificates.Find(X509FindType.FindByThumbprint, norm, false);
+            }
+            else if (!string.IsNullOrEmpty(subjectContains))
+            {
+                matches = new X509Certificate2Collection(
+                    store.Certificates
+                         .Cast<X509Certificate2>()
+                         .Where(c => c.Subject.IndexOf(subjectContains, StringComparison.OrdinalIgnoreCase) >= 0)
+                         .ToArray());
+            }
+            else
+            {
+                throw new ArgumentException("Provide thumbprint or subjectContains.");
+            }
+
+            return matches.Cast<X509Certificate2>()
+                          .OrderByDescending(c => c.NotAfter)
+                          .FirstOrDefault();
+        }
+    }
+
+    private static string NormalizeThumbprint(string tp)
+        => tp.Replace(" ", "").Replace("\u200e", "").Replace("\u200f", "").ToUpperInvariant();
+
+    private static string BuildStoreDebugDump(string thumbprint, string subjectContains)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("Searched stores: LocalMachine\\My and CurrentUser\\My");
+        sb.AppendLine("Search criteria:");
+        sb.AppendLine("  thumbprint      = " + (thumbprint ?? "(null)"));
+        sb.AppendLine("  subjectContains = " + (subjectContains ?? "(null)"));
+        sb.AppendLine();
+
+        sb.AppendLine("LocalMachine\\My snapshot:");
+        sb.AppendLine(DumpStore(StoreLocation.LocalMachine));
+        sb.AppendLine();
+
+        sb.AppendLine("CurrentUser\\My snapshot:");
+        sb.AppendLine(DumpStore(StoreLocation.CurrentUser));
+
+        return sb.ToString();
+    }
+
+    private static string DumpStore(StoreLocation location)
+    {
+        using (var store = new X509Store(StoreName.My, location))
+        {
+            store.Open(OpenFlags.ReadOnly);
+
+            var lines = store.Certificates
+                .Cast<X509Certificate2>()
+                .OrderByDescending(c => c.NotAfter)
+                .Take(20)
+                .Select(c =>
+                    string.Format("  Subject={0} | Thumbprint={1} | HasPrivateKey={2} | NotAfter={3}",
+                        c.Subject, c.Thumbprint, c.HasPrivateKey, c.NotAfter));
+
+            return string.Join("\n", lines.ToArray());
+        }
+    }
+}
+
+
