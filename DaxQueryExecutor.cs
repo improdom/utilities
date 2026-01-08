@@ -33,3 +33,18 @@ I will re-test tomorrow once the required gateway access has been granted.
 Thanks,  
 Julio
 
+
+
+
+Hi Lokesh,
+
+I reviewed the MRV metadata and noticed a few issues, including missing definitions. I checked this with John, and it appears the data was copied from the on-prem DEV environment, which contains data that is approximately two years old.
+
+To ensure completeness and accuracy, the metadata should be aligned with the on-prem PROD or PreProd environment, where all MRV calculations are available.
+
+Could you please coordinate with John to obtain the necessary access and information so we can migrate the correct data?
+
+Thanks,  
+Julio Diaz
+
+
