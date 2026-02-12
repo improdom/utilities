@@ -1,41 +1,7 @@
-version: "1.0"
+Hi Farhan/Siva,
 
-reconciliation_run:
-  # Point to the set by stable id (preferred) or by name if you must
-  set_ref:
-    id: "arc-risk-daily"
-    # Optional: pin the exact version of the definition for reproducibility.
-    # This can be a git commit SHA, tag, or a semantic version you store.
-    definition_version: "git:4b1c9b7"
+As a short-term tactical measure, I recommend upgrading to version 2.1.4 to obtain the additional six months of coverage while we work on a permanent solution.
 
-  run_id: "arc-risk-daily-2026-01-30T09-15-00Z"   # optional; engine can generate
-  requested_by: "julio.diaz"
-  requested_at_utc: "2026-01-30T09:15:00Z"
+The long-term solution would involve developing a custom implementation. This will require some time, as full regression testing will be necessary before promoting it to production.
 
-  # Parameter values supplied at execution time
-  parameters:
-    cob_date: "2026-01-30"
-    book_id: "EQD"
-    top_n: 50
-
-  # Optional: choose which items to run
-  selection:
-    mode: "include"        # include | exclude | all
-    items:
-      - "SSAS vs Power BI - Total VaR"
-      - "API vs Power BI - Risk Results Rowset"
-
-  # Optional: runtime overrides (do NOT change the set definition)
-  overrides:
-    execution:
-      timeout_seconds: 1800
-    compare:
-      null_equals_null: true
-
-  # Optional: output control for this run
-  output:
-    sink: "delta"
-    delta_table: "main.recon.reconciliation_results"
-    write_mode: "append"
-    partition_by:
-      - "run_id"
+Upgrading now gives us the required buffer to properly plan, implement, and validate the final solution in a controlled manner.
