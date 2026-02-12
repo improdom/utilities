@@ -1,59 +1,44 @@
-Hi [Manager Name],
+Power BI Performance / Load / Stress Testing — what each one means
 
-Our recent GitLab/Nexus vulnerability scan flagged the Toastr JavaScript library (currently v2.1.1) and recommends upgrading to version 2.1.3.
+Performance testing
+Goal: How fast is the model for a given workload?
+Strategy: run a fixed set of representative DAX queries (same filters, same result sizes), measure latency (p50/p95/p99), repeat across a few runs to reduce noise. Include a warm cache run and (optionally) a cold-ish run.
 
-After verification, version 2.1.3 is not officially available in NuGet, npm, or the original GitHub repository. The latest published release from the maintainers remains v2.1.1. This suggests the scanner is referencing a version that is not distributed through the standard channels we use.
+Load testing
+Goal: How does the model behave under “expected” concurrent usage?
+Strategy: simulate realistic concurrency patterns (e.g., 5, 10, 20 concurrent users) with realistic pacing (not just a burst), measure throughput (queries/sec), latency percentiles, and error rates over a sustained window (10–30 minutes). The point is “steady state.”
 
-Given this, we have three practical options:
+Stress testing
+Goal: Where is the breaking point?
+Strategy: ramp concurrency upward (1 → 5 → 10 → 20 → 40…) until you hit unacceptable latency (the “knee” in the curve) or failures (timeouts, memory pressure, capacity saturation). Record the max stable throughput and the failure mode.
 
-**Option 1 – Replace the library with a maintained alternative**
-Example: SweetAlert2 or Bootstrap Toast.
+REST API vs ADOMD.NET for these tests
 
-Advantages:
+REST API (Datasets ExecuteQueries)
 
-* Removes the current vulnerability finding.
-* Reduces future governance friction.
-* Moves us to an actively maintained dependency.
+Path: goes through the Power BI HTTP/API layer first, then the dataset runs the DAX.
 
-Disadvantages:
+What it’s great for: validating application integration behavior (HTTP latency, retries, throttling, payload limits).
 
-* Requires development and regression testing effort.
-* Potential minor UI adjustments.
-* Small implementation timeline impact.
+Risk for load/stress: the REST API has built-in throttling/limits (e.g., per-user request limits and response size limits). Under high concurrency, you can hit API limits before the capacity is truly saturated—so you end up measuring “API gateway behavior” more than “model/capacity behavior.”
 
-**Option 2 – Submit a formal security exception / risk acceptance**
+ADOMD.NET (XMLA / Analysis Services protocol)
 
-Document that no newer official version exists, validate whether the reported vulnerability is exploitable in our implementation, and request a governance deferral.
+Path: connects much more directly to the dataset engine (same family of connectivity used by tools like SSMS/DAX Studio).
 
-Advantages:
+What it’s great for: measuring semantic model engine + capacity behavior (Formula/Storage Engine contention, cache effects, CPU/memory pressure) with less interference from HTTP API throttles.
 
-* Minimal development effort.
-* Fast resolution if approved.
-* No UI or functional changes required.
+Ideal for: performance/load/stress testing where the question is “How much can the model/capacity handle?”
 
-Disadvantages:
+Recommended strategy + which one to pick
 
-* Requires formal review and approval process.
-* May need periodic re-justification in future scans.
-* Does not modernize the dependency.
+Pick ADOMD.NET as the primary harness for Power BI performance/load/stress testing of the model and capacity.
+Use it to build your core curves:
 
-**Option 3 – Rewrite or implement a lightweight in-house notification component**
+Concurrency ramp tests (find the knee point)
 
-Develop a small custom notification utility that covers our current usage (basic success/error/info messages) and remove the third-party dependency.
+Sustained load tests (stability over time)
 
-Advantages:
+Latency percentiles (p50/p95/p99) and throughput
 
-* Full control over implementation.
-* Eliminates dependency-related vulnerability findings.
-* Simplifies future security governance for this component.
-
-Disadvantages:
-
-* Requires development and testing effort.
-* We assume long-term maintenance responsibility.
-* Must ensure secure coding standards and UI consistency.
-
-Please let me know which direction you would prefer so we can proceed accordingly.
-
-Best regards,
-Julio Diaz
+Use REST API only as a secondary mode if you also need to prove how a downstream HTTP-based application would behave (throttling, retry policy, API constraints). That’s a different question than capacity performance.
