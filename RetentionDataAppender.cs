@@ -1,33 +1,29 @@
-Hi Team,
+Hi [Manager Name],
 
-We will begin Phase 1 of performance validation for the CubIQ Power BI model immediately, focusing on stress testing to identify the system’s breaking point.
+I would like to align expectations around the previously mentioned 90 QPS baseline so that we have accurate performance information when communicating with stakeholders.
 
-**Phase 1 – Stress Testing (Breaking Point Identification)**
-We will use the existing set of 500 DAX queries currently available in the Stress Test Tool. The objective of this phase is to determine the maximum number of queries the system can handle at the same time before performance degrades.
+QPS (Queries Per Second) represents how many queries the system can complete every second on a sustained basis. It is directly determined by two factors: how many queries can run at the same time (concurrency) and how long each query takes.
 
-In the tool, concurrency is calculated as:
+The relationship is:
 
-Threads × Concurrency setting
-Example:
-2 threads × 3 concurrency = 6 queries running simultaneously.
+QPS ≈ Concurrency ÷ Average Query Duration (seconds)
+Required Concurrency ≈ QPS × Average Query Duration
 
-We will gradually increase concurrency levels and monitor:
+Based on current observations, the average MRV query duration is approximately 3.5 seconds.
 
-* Response times
-* Timeout and failure rates
-* The highest stable concurrency level before significant degradation
+If we assume our effective maximum concurrency is around 100 queries (based on our Databricks serverless warehouse with up to 10 nodes and estimated parallel capacity), then:
 
-Initial testing showed that:
+QPS ≈ 100 ÷ 3.5 ≈ 28–29 QPS
 
-* 10 threads × 10 concurrency (100 concurrent queries) resulted in timeout errors.
+This suggests that, under the current configuration and average duration, our realistic sustained throughput would be approximately 28–29 QPS.
 
-The goal is to systematically increase concurrency and clearly identify the point at which the system starts to fail or slow down significantly.
+To sustain 90 QPS at 3.5 seconds average duration, the required concurrency would be:
 
-**Important – Test Isolation Requirement**
-These stress tests must be executed in isolation. During test execution, please ensure no other workloads or ad-hoc queries are running against the Databricks environment. This is required to ensure results accurately reflect CubIQ capacity limits and are not influenced by external activity.
+Required Concurrency ≈ 90 × 3.5 ≈ 315 concurrent queries
 
-**Phase 2 – Load Testing (Next Week)**
-Next week, we will perform load testing by simulating concurrent users running queries continuously for a sustained period of time. The goal will be to measure how the system performs under steady, real-world usage, including overall throughput, response times, and system stability during ongoing activity.
+This would require significantly higher concurrency capacity than what we currently estimate is available.
+
+The purpose of sharing this is to ensure we set expectations based on measurable system behavior and to enable the team to communicate performance capacity clearly and consistently. Our upcoming stress testing will validate actual concurrency limits and provide concrete data to support these discussions.
 
 Regards,
 Julio
