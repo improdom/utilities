@@ -1,44 +1,14 @@
-using System.Collections.Generic;
-using System.Text.Json.Serialization;
+Hi Durga,
 
-internal sealed class ResultChunkResponse
-{
-    // NOTE: JSON is "external_links" (snake_case)
-    [JsonPropertyName("external_links")]
-    public ExternalLink[]? ExternalLinks { get; set; }
+Thanks for validating the MRV partitions and confirming alignment with the Databricks metadata.
 
-    [JsonPropertyName("data_array")]
-    public object?[][]? DataArray { get; set; }
-}
+As of today, I have updated the MRV builder to reference the Databricks Delta table directly for partition creation and population.
 
-public sealed class ExternalLink
-{
-    [JsonPropertyName("external_link")]
-    public string ExternalLinkUrl { get; set; } = "";
+For context, when we previously discussed sourcing the partition metadata from Databricks, the understanding was that partition IDs would remain stable. Based on that assumption, prioritization of this change was deferred at the time.
 
-    // NOTE: JSON is an object/dictionary: { "header-name": "value", ... }
-    [JsonPropertyName("http_headers")]
-    public Dictionary<string, string>? HttpHeaders { get; set; }
+During the recent investigation, I observed that the Azure SQL metadata tables were not fully synchronized with the Databricks partitions, which contributed to the discrepancy seen. With the update now in place, the MRV workflow will consistently rely on the Databricks Delta table as the single source of truth going forward.
 
-    [JsonPropertyName("expiration")]
-    public string? Expiration { get; set; }
+Happy to review the changes together or discuss any follow-ups if needed.
 
-    // Optional fields you saw in the payload (safe to include)
-    [JsonPropertyName("chunk_index")]
-    public int? ChunkIndex { get; set; }
-
-    [JsonPropertyName("row_offset")]
-    public long? RowOffset { get; set; }
-
-    [JsonPropertyName("row_count")]
-    public long? RowCount { get; set; }
-
-    [JsonPropertyName("byte_count")]
-    public long? ByteCount { get; set; }
-
-    [JsonPropertyName("next_chunk_index")]
-    public int? NextChunkIndex { get; set; }
-
-    [JsonPropertyName("next_chunk_internal_link")]
-    public string? NextChunkInternalLink { get; set; }
-}
+Thanks,
+Julio
