@@ -1,3 +1,16 @@
+
+var http = DatabricksExternalLinkJsonArrayLoader.CreateRobustHttpClient(TimeSpan.FromMinutes(10));
+
+long emitted = await DatabricksExternalLinkJsonArrayLoader.DownloadAndStreamRowsWithRetryAsync(
+    http,
+    link.ExternalLinkUrl,
+    link.HttpHeaders,      // IDictionary<string,string> if you have it
+    link.RowCount,         // expected
+    row => AppendRowToCache(row, ord, rows, byMeasure, byScenario, byMdst),
+    ct);
+
+
+
 using System;
 using System.Buffers;
 using System.Collections.Generic;
@@ -183,3 +196,4 @@ public static class DatabricksExternalLinkJsonArrayLoader
         };
     }
 }
+
