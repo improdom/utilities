@@ -1,89 +1,44 @@
-public static async Task StreamParseJsonArrayOfRowsAsync(
-    Stream stream,
-    Action<object?[]> onRow,
-    CancellationToken ct)
+using System.Collections.Generic;
+using System.Text.Json.Serialization;
+
+internal sealed class ResultChunkResponse
 {
-    byte[] buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
-    try
-    {
-        var state = new JsonReaderState(new JsonReaderOptions
-        {
-            AllowTrailingCommas = false,
-            CommentHandling = JsonCommentHandling.Disallow
-        });
+    // NOTE: JSON is "external_links" (snake_case)
+    [JsonPropertyName("external_links")]
+    public ExternalLink[]? ExternalLinks { get; set; }
 
-        int bytesInBuffer = 0;
-        bool isFinal = false;
-        bool outerArrayStarted = false;
-
-        while (!isFinal)
-        {
-            ct.ThrowIfCancellationRequested();
-
-            // Read after any carry-over bytes
-            int read = await stream.ReadAsync(buffer, bytesInBuffer, buffer.Length - bytesInBuffer, ct)
-                                   .ConfigureAwait(false);
-
-            if (read == 0)
-                isFinal = true;
-
-            int totalBytes = bytesInBuffer + read;
-
-            // Parse using sync method (Span/ref structs live ONLY there)
-            int bytesConsumed = ParseSpanFromBuffer(
-                buffer,
-                totalBytes,
-                isFinal,
-                ref state,
-                ref outerArrayStarted,
-                onRow);
-
-            // Carry over unconsumed bytes (partial JSON token)
-            int remaining = totalBytes - bytesConsumed;
-            if (remaining > 0)
-            {
-                Buffer.BlockCopy(buffer, bytesConsumed, buffer, 0, remaining);
-            }
-
-            bytesInBuffer = remaining;
-        }
-    }
-    finally
-    {
-        ArrayPool<byte>.Shared.Return(buffer);
-    }
+    [JsonPropertyName("data_array")]
+    public object?[][]? DataArray { get; set; }
 }
 
-
-
-private static int ParseSpanFromBuffer(
-    byte[] buffer,
-    int length,
-    bool isFinal,
-    ref JsonReaderState state,
-    ref bool outerArrayStarted,
-    Action<object?[]> onRow)
+public sealed class ExternalLink
 {
-    var span = new ReadOnlySpan<byte>(buffer, 0, length); // OK: sync method
-    var reader = new Utf8JsonReader(span, isFinal, state);
+    [JsonPropertyName("external_link")]
+    public string ExternalLinkUrl { get; set; } = "";
 
-    while (reader.Read())
-    {
-        if (!outerArrayStarted)
-        {
-            if (reader.TokenType == JsonTokenType.StartArray)
-                outerArrayStarted = true;
+    // NOTE: JSON is an object/dictionary: { "header-name": "value", ... }
+    [JsonPropertyName("http_headers")]
+    public Dictionary<string, string>? HttpHeaders { get; set; }
 
-            continue;
-        }
+    [JsonPropertyName("expiration")]
+    public string? Expiration { get; set; }
 
-        if (reader.TokenType == JsonTokenType.StartArray)
-        {
-            if (TryReadRow(ref reader, out var row))
-                onRow(row);
-        }
-    }
+    // Optional fields you saw in the payload (safe to include)
+    [JsonPropertyName("chunk_index")]
+    public int? ChunkIndex { get; set; }
 
-    state = reader.CurrentState;
-    return (int)reader.BytesConsumed;
+    [JsonPropertyName("row_offset")]
+    public long? RowOffset { get; set; }
+
+    [JsonPropertyName("row_count")]
+    public long? RowCount { get; set; }
+
+    [JsonPropertyName("byte_count")]
+    public long? ByteCount { get; set; }
+
+    [JsonPropertyName("next_chunk_index")]
+    public int? NextChunkIndex { get; set; }
+
+    [JsonPropertyName("next_chunk_internal_link")]
+    public string? NextChunkInternalLink { get; set; }
 }
