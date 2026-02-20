@@ -1,14 +1,43 @@
-Hi Durga,
+while (true)
+{
+    ct.ThrowIfCancellationRequested();
 
-Thanks for validating the MRV partitions and confirming alignment with the Databricks metadata.
+    int read = 0;
+    if (!isFinal && bytesInBuffer < buffer.Length)
+    {
+        read = await stream.ReadAsync(buffer, bytesInBuffer, buffer.Length - bytesInBuffer, ct)
+                           .ConfigureAwait(false);
+        if (read == 0) isFinal = true;
+    }
+    else if (!isFinal && bytesInBuffer == buffer.Length)
+    {
+        throw new InvalidOperationException("Buffer full with unconsumed JSON bytes. Increase buffer or fix parser consumption.");
+    }
 
-As of today, I have updated the MRV builder to reference the Databricks Delta table directly for partition creation and population.
+    int totalBytes = bytesInBuffer + read;
 
-For context, when we previously discussed sourcing the partition metadata from Databricks, the understanding was that partition IDs would remain stable. Based on that assumption, prioritization of this change was deferred at the time.
+    int bytesConsumed = ParseSpanFromBuffer(
+        buffer,
+        totalBytes,
+        isFinal,
+        ref state,
+        ref outerArrayStarted,
+        onRow);
 
-During the recent investigation, I observed that the Azure SQL metadata tables were not fully synchronized with the Databricks partitions, which contributed to the discrepancy seen. With the update now in place, the MRV workflow will consistently rely on the Databricks Delta table as the single source of truth going forward.
+    int remaining = totalBytes - bytesConsumed;
 
-Happy to review the changes together or discuss any follow-ups if needed.
+    if (remaining > 0)
+        Buffer.BlockCopy(buffer, bytesConsumed, buffer, 0, remaining);
 
-Thanks,
-Julio
+    bytesInBuffer = remaining;
+
+    // IMPORTANT: keep looping after EOF until the parser consumes everything
+    if (isFinal)
+    {
+        if (bytesConsumed == 0 && bytesInBuffer > 0)
+            throw new InvalidOperationException($"EOF reached but {bytesInBuffer} bytes remain unconsumed. JSON truncated or parser stuck.");
+
+        if (bytesInBuffer == 0)
+            break; // fully consumed
+    }
+}
