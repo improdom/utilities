@@ -1,127 +1,91 @@
-using System.Text.Json;
-
-private static int ParseSpanFromBuffer(
-    byte[] buffer,
-    int length,
-    bool isFinal,
-    ref JsonReaderState state,
-    ref bool outerArrayStarted,
-    Action<object?[]> onRow)
+public static async Task StreamParseJsonArrayOfRowsAsync(
+    Stream stream,
+    Action<object?[]> onRow,
+    CancellationToken ct)
 {
-    var span = new ReadOnlySpan<byte>(buffer, 0, length);
-    var reader = new Utf8JsonReader(span, isFinal, state);
+    // Start with 64KB like you had
+    byte[] buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
+    int bytesInBuffer = 0;
+    bool isFinal = false;
+    bool outerArrayStarted = false;
 
-    while (true)
+    var state = new JsonReaderState(new JsonReaderOptions
     {
-        try
+        AllowTrailingCommas = false,
+        CommentHandling = JsonCommentHandling.Disallow
+    });
+
+    try
+    {
+        while (true)
         {
-            while (reader.Read())
+            ct.ThrowIfCancellationRequested();
+
+            // If the buffer is full but we still haven't consumed it,
+            // it means we have a JSON token larger than current capacity.
+            // Grow the buffer instead of throwing.
+            if (!isFinal && bytesInBuffer == buffer.Length)
             {
-                // Wait for the outer array '['
-                if (!outerArrayStarted)
-                {
-                    if (reader.TokenType == JsonTokenType.StartArray)
-                        outerArrayStarted = true;
+                int newSize = buffer.Length * 2;
+                byte[] newBuffer = ArrayPool<byte>.Shared.Rent(newSize);
 
-                    continue;
-                }
+                Buffer.BlockCopy(buffer, 0, newBuffer, 0, bytesInBuffer);
+                ArrayPool<byte>.Shared.Return(buffer);
+                buffer = newBuffer;
 
-                // Each row is itself an array: [col1, col2, ...]
-                if (reader.TokenType == JsonTokenType.StartArray)
-                {
-                    int rowStart = checked((int)reader.TokenStartIndex);
-
-                    if (TryReadRow(ref reader, out var row))
-                    {
-                        onRow(row);
-                        continue;
-                    }
-
-                    // Row is incomplete (split across buffers): rewind to row start
-                    reader = new Utf8JsonReader(span.Slice(rowStart), isFinal, state);
-                    state = reader.CurrentState;
-                    return rowStart; // consumed up to rowStart; caller will carry remaining bytes
-                }
-
-                // Optional: if the outer array ends, we can stop parsing this span
-                if (reader.TokenType == JsonTokenType.EndArray)
-                {
-                    state = reader.CurrentState;
-                    return (int)reader.BytesConsumed;
-                }
+                // Optional log:
+                // Console.WriteLine($"[JSON] Grew buffer to {newSize:n0} bytes (carried {bytesInBuffer:n0}).");
             }
 
-            // No more tokens in this span
-            state = reader.CurrentState;
-            return (int)reader.BytesConsumed;
-        }
-        catch (JsonException) when (!isFinal)
-        {
-            // IMPORTANT: On non-final buffers, JsonException often means the JSON value
-            // was split across buffers. We must NOT drop bytes; just stop and carry remainder.
-            state = reader.CurrentState;
-            return (int)reader.BytesConsumed;
+            int read = 0;
+
+            // Read more only if we haven't reached EOF and there is room
+            if (!isFinal && bytesInBuffer < buffer.Length)
+            {
+                read = await stream.ReadAsync(
+                        buffer,
+                        bytesInBuffer,
+                        buffer.Length - bytesInBuffer,
+                        ct)
+                    .ConfigureAwait(false);
+
+                if (read == 0)
+                    isFinal = true;
+            }
+
+            int totalBytes = bytesInBuffer + read;
+
+            // Parse as much as possible
+            int bytesConsumed = ParseSpanFromBuffer(
+                buffer,
+                totalBytes,
+                isFinal,
+                ref state,
+                ref outerArrayStarted,
+                onRow);
+
+            int remaining = totalBytes - bytesConsumed;
+
+            if (remaining > 0)
+                Buffer.BlockCopy(buffer, bytesConsumed, buffer, 0, remaining);
+
+            bytesInBuffer = remaining;
+
+            // After EOF: keep looping until everything is consumed
+            if (isFinal)
+            {
+                // If we’re final and we can’t make progress, something is wrong
+                if (bytesConsumed == 0 && bytesInBuffer > 0)
+                    throw new InvalidOperationException(
+                        $"EOF reached but {bytesInBuffer} bytes remain unconsumed. JSON truncated or parser stuck.");
+
+                if (bytesInBuffer == 0)
+                    break; // fully consumed
+            }
         }
     }
-}
-
-private static bool TryReadRow(ref Utf8JsonReader reader, out object?[] row)
-{
-    // We enter positioned on StartArray (row)
-    var values = new List<object?>(16);
-
-    while (true)
+    finally
     {
-        if (!reader.Read())
-        {
-            row = null!;
-            return false; // incomplete row
-        }
-
-        if (reader.TokenType == JsonTokenType.EndArray)
-        {
-            row = values.ToArray();
-            return true;
-        }
-
-        // Parse one value (primitive or complex)
-        switch (reader.TokenType)
-        {
-            case JsonTokenType.Null:
-                values.Add(null);
-                break;
-
-            case JsonTokenType.True:
-                values.Add(true);
-                break;
-
-            case JsonTokenType.False:
-                values.Add(false);
-                break;
-
-            case JsonTokenType.String:
-                values.Add(reader.GetString());
-                break;
-
-            case JsonTokenType.Number:
-                if (reader.TryGetInt64(out var l)) values.Add(l);
-                else if (reader.TryGetDouble(out var d)) values.Add(d);
-                else values.Add(reader.GetDecimal());
-                break;
-
-            case JsonTokenType.StartObject:
-            case JsonTokenType.StartArray:
-                // Complex value inside the row: parse as JsonElement.
-                // This advances the reader to the end of that value.
-                using (var doc = JsonDocument.ParseValue(ref reader))
-                {
-                    values.Add(doc.RootElement.Clone());
-                }
-                break;
-
-            default:
-                throw new InvalidOperationException(
-                    $"Unexpected token {reader.TokenType} inside row array.");
-        }
+        ArrayPool<byte>.Shared.Return(buffer);
     }
 }
