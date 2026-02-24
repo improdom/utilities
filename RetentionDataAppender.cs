@@ -1,199 +1,164 @@
+/* ============================================================
+   Recreate tables for PbiQueryStress (SQL MI / SQL Server)
+   ============================================================ */
 
-var http = DatabricksExternalLinkJsonArrayLoader.CreateRobustHttpClient(TimeSpan.FromMinutes(10));
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
 
-long emitted = await DatabricksExternalLinkJsonArrayLoader.DownloadAndStreamRowsWithRetryAsync(
-    http,
-    link.ExternalLinkUrl,
-    link.HttpHeaders,      // IDictionary<string,string> if you have it
-    link.RowCount,         // expected
-    row => AppendRowToCache(row, ord, rows, byMeasure, byScenario, byMdst),
-    ct);
+/* ============================================================
+   1) benchmark
+   ============================================================ */
+IF OBJECT_ID('dbo.benchmark', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.benchmark
+    (
+        benchmark_id        INT IDENTITY(1,1) NOT NULL,
+        name                NVARCHAR(256) NULL,
+        created_by          NVARCHAR(256) NULL,
+        connection_string   NVARCHAR(MAX) NULL,
+        number_iterations   INT NOT NULL CONSTRAINT DF_benchmark_number_iterations DEFAULT (1),
+        number_threads      INT NOT NULL CONSTRAINT DF_benchmark_number_threads DEFAULT (1),
+        query_delay         INT NOT NULL CONSTRAINT DF_benchmark_query_delay DEFAULT (0),
+        run_options         NVARCHAR(MAX) NULL,
+        concurrency         INT NULL,
 
+        CONSTRAINT PK_benchmark PRIMARY KEY CLUSTERED (benchmark_id)
+    );
+END
+GO
 
+/* ============================================================
+   2) query_template
+   ============================================================ */
+IF OBJECT_ID('dbo.query_template', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.query_template
+    (
+        query_id        INT IDENTITY(1,1) NOT NULL,
+        query_name      NVARCHAR(256) NULL,
+        dax_query       NVARCHAR(MAX) NULL,
+        benchmark_id    INT NOT NULL,
 
-using System;
-using System.Buffers;
-using System.Collections.Generic;
-using System.IO;
-using System.Net;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
+        CONSTRAINT PK_query_template PRIMARY KEY CLUSTERED (query_id),
+        CONSTRAINT FK_query_template_benchmark
+            FOREIGN KEY (benchmark_id) REFERENCES dbo.benchmark(benchmark_id)
+    );
 
-public static class DatabricksExternalLinkJsonArrayLoader
-{
-    private static readonly JsonSerializerOptions JsonOpts = new()
-    {
-        // External links payload is pure JSON; keep strict.
-        AllowTrailingCommas = false,
-        ReadCommentHandling = JsonCommentHandling.Disallow
-    };
+    CREATE INDEX IX_query_template_benchmark_id
+        ON dbo.query_template(benchmark_id);
+END
+GO
 
-    public static async Task<long> DownloadAndStreamRowsWithRetryAsync(
-        HttpClient http,
-        string externalLinkUrl,
-        IDictionary<string, string>? headers,
-        long expectedRowCount,
-        Action<object?[]> onRow,
-        CancellationToken ct,
-        int maxAttempts = 3)
-    {
-        Exception? last = null;
+/* ============================================================
+   3) query_runtime
+   ============================================================ */
+IF OBJECT_ID('dbo.query_runtime', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.query_runtime
+    (
+        runtime_id                   INT IDENTITY(1,1) NOT NULL,
+        query_id                     INT NULL,
+        dax                          NVARCHAR(MAX) NULL,
 
-        for (int attempt = 1; attempt <= maxAttempts; attempt++)
-        {
-            ct.ThrowIfCancellationRequested();
+        start_time                   DATETIME2(7) NULL,
+        end_time                     DATETIME2(7) NULL,
+        runtime_ms                   FLOAT NULL,
 
-            try
-            {
-                long emitted = await DownloadAndStreamRowsOnceAsync(
-                    http, externalLinkUrl, headers, onRow, ct);
+        pbi_workspace                NVARCHAR(512) NULL,
+        error                        NVARCHAR(MAX) NULL,
+        status                       NVARCHAR(128) NULL,
+        user_id                      NVARCHAR(256) NULL,
 
-                // Validate deterministically
-                if (expectedRowCount >= 0 && emitted != expectedRowCount)
-                {
-                    throw new InvalidOperationException(
-                        $"RowCount mismatch. Expected={expectedRowCount}, Emitted={emitted}, Url={externalLinkUrl}");
-                }
+        benchmark_name               NVARCHAR(256) NULL,
 
-                return emitted;
-            }
-            catch (Exception ex) when (attempt < maxAttempts && IsRetryable(ex))
-            {
-                last = ex;
+        data_transfer_start_time     DATETIME2(7) NULL,
+        data_transfer_end_time       DATETIME2(7) NULL,
+        data_transfer_ms             FLOAT NULL,
 
-                // Backoff with jitter (keeps pressure off Databricks / proxy)
-                var delayMs = (int)(200 * Math.Pow(2, attempt - 1)) + Random.Shared.Next(0, 200);
-                await Task.Delay(delayMs, ct);
-            }
-        }
+        benchmark_run_id             INT NULL,
+        number_threads               INT NULL,
+        number_iterations            INT NULL,
+        benchmark_run_name           NVARCHAR(256) NULL,
 
-        throw new InvalidOperationException(
-            $"Failed after {maxAttempts} attempts. Url={externalLinkUrl}", last);
-    }
+        concurrency                  INT NULL,
+        thread_id                    NVARCHAR(128) NULL,
 
-    private static async Task<long> DownloadAndStreamRowsOnceAsync(
-        HttpClient http,
-        string externalLinkUrl,
-        IDictionary<string, string>? headers,
-        Action<object?[]> onRow,
-        CancellationToken ct)
-    {
-        using var req = new HttpRequestMessage(HttpMethod.Get, externalLinkUrl);
+        CONSTRAINT PK_query_runtime PRIMARY KEY CLUSTERED (runtime_id),
+        CONSTRAINT FK_query_runtime_query_template
+            FOREIGN KEY (query_id) REFERENCES dbo.query_template(query_id)
+    );
 
-        // Databricks may require headers for signed URLs
-        if (headers != null)
-        {
-            foreach (var kv in headers)
-            {
-                // Avoid header validation issues (signed URLs sometimes include unusual headers)
-                req.Headers.TryAddWithoutValidation(kv.Key, kv.Value);
-            }
-        }
+    CREATE INDEX IX_query_runtime_query_id
+        ON dbo.query_runtime(query_id);
 
-        // Ensure we ask for compressed content (handler will decompress if configured)
-        req.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("gzip"));
-        req.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("deflate"));
-        req.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("br"));
+    CREATE INDEX IX_query_runtime_start_time
+        ON dbo.query_runtime(start_time);
+END
+GO
 
-        using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
-        resp.EnsureSuccessStatusCode();
+/* ============================================================
+   4) parameters
+   ============================================================ */
+IF OBJECT_ID('dbo.parameters', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.parameters
+    (
+        parameter_id         INT IDENTITY(1,1) NOT NULL,
+        name                 NVARCHAR(256) NULL,
+        mapping_column       NVARCHAR(256) NULL,
+        query                NVARCHAR(MAX) NULL,
+        connectionString     NVARCHAR(MAX) NULL,   -- matches [Column("connectionString")]
+        data_type            NVARCHAR(128) NULL,
+        format               NVARCHAR(128) NULL,
+        report_expression    NVARCHAR(MAX) NULL,
+        param_value          NVARCHAR(MAX) NULL,
 
-        await using var stream = await resp.Content.ReadAsStreamAsync(ct);
+        query_id             INT NULL,
+        benchmark_id         INT NULL,
+        benchmark_param      BIT NOT NULL CONSTRAINT DF_parameters_benchmark_param DEFAULT (0),
+        query_name           NVARCHAR(256) NULL,
 
-        // Stream each row without loading entire JSON into memory
-        long emitted = 0;
+        CONSTRAINT PK_parameters PRIMARY KEY CLUSTERED (parameter_id),
+        CONSTRAINT FK_parameters_query_template
+            FOREIGN KEY (query_id) REFERENCES dbo.query_template(query_id),
+        CONSTRAINT FK_parameters_benchmark
+            FOREIGN KEY (benchmark_id) REFERENCES dbo.benchmark(benchmark_id)
+    );
 
-        // We deserialize the OUTER array as JsonElement items. Each item should be a row array.
-        await foreach (JsonElement rowElem in JsonSerializer.DeserializeAsyncEnumerable<JsonElement>(stream, JsonOpts, ct))
-        {
-            ct.ThrowIfCancellationRequested();
+    CREATE INDEX IX_parameters_query_id
+        ON dbo.parameters(query_id);
 
-            if (rowElem.ValueKind == JsonValueKind.Undefined || rowElem.ValueKind == JsonValueKind.Null)
-                continue;
+    CREATE INDEX IX_parameters_benchmark_id
+        ON dbo.parameters(benchmark_id);
+END
+GO
 
-            if (rowElem.ValueKind != JsonValueKind.Array)
-                throw new InvalidOperationException($"Expected row to be JSON array but got {rowElem.ValueKind}.");
+/* ============================================================
+   5) arc_mrv_recon_target_data
+   ============================================================ */
+IF OBJECT_ID('dbo.arc_mrv_recon_target_data', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.arc_mrv_recon_target_data
+    (
+        id               INT IDENTITY(1,1) NOT NULL,
+        business_date    NVARCHAR(64) NULL,
+        local_value      NVARCHAR(MAX) NULL,
+        src_book_id      NVARCHAR(256) NULL,
+        source           NVARCHAR(128) NULL,
+        measure_name     NVARCHAR(256) NULL,
+        level_name       NVARCHAR(256) NULL,
+        run_id           NVARCHAR(256) NULL,
+        measure_value    FLOAT NULL,
+        benchmark_run_id FLOAT NULL,
 
-            // Convert row (JsonElement array) into object?[] (supports primitives + nested values)
-            object?[] row = ConvertRow(rowElem);
-            onRow(row);
-            emitted++;
-        }
+        CONSTRAINT PK_arc_mrv_recon_target_data PRIMARY KEY CLUSTERED (id)
+    );
 
-        return emitted;
-    }
+    CREATE INDEX IX_arc_mrv_recon_target_data_run_id
+        ON dbo.arc_mrv_recon_target_data(run_id);
 
-    private static object?[] ConvertRow(JsonElement rowElem)
-    {
-        int len = rowElem.GetArrayLength();
-        var row = new object?[len];
-
-        int i = 0;
-        foreach (var cell in rowElem.EnumerateArray())
-        {
-            row[i++] = ConvertCell(cell);
-        }
-
-        return row;
-    }
-
-    private static object? ConvertCell(JsonElement cell)
-    {
-        // Convert primitives to CLR types; keep complex types as JsonElement (safe, lossless)
-        return cell.ValueKind switch
-        {
-            JsonValueKind.Null => null,
-            JsonValueKind.True => true,
-            JsonValueKind.False => false,
-            JsonValueKind.String => cell.GetString(),
-
-            JsonValueKind.Number => cell.TryGetInt64(out var l) ? l
-                                 : cell.TryGetDouble(out var d) ? d
-                                 : cell.GetDecimal(),
-
-            // If Databricks returns nested arrays/objects in a column,
-            // keep it as JsonElement (caller can decide what to do).
-            JsonValueKind.Object => cell.Clone(),
-            JsonValueKind.Array => cell.Clone(),
-
-            _ => cell.Clone()
-        };
-    }
-
-    private static bool IsRetryable(Exception ex)
-    {
-        // JSON parse errors can come from truncation; retry is reasonable.
-        // Network glitches are retryable.
-        if (ex is HttpRequestException) return true;
-        if (ex is IOException) return true;
-        if (ex is TaskCanceledException) return true; // includes timeouts
-        if (ex is JsonException) return true;
-
-        // RowCount mismatch can happen if the stream was truncated but still valid JSON (rare).
-        // Retrying often fixes it.
-        if (ex is InvalidOperationException ioe && ioe.Message.Contains("RowCount mismatch", StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        return false;
-    }
-
-    /// <summary>
-    /// Create an HttpClient that auto-decompresses (important).
-    /// </summary>
-    public static HttpClient CreateRobustHttpClient(TimeSpan timeout)
-    {
-        var handler = new HttpClientHandler
-        {
-            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli
-        };
-
-        return new HttpClient(handler)
-        {
-            Timeout = timeout
-        };
-    }
-}
-
+    CREATE INDEX IX_arc_mrv_recon_target_data_business_date
+        ON dbo.arc_mrv_recon_target_data(business_date);
+END
+GO
