@@ -1,168 +1,118 @@
-using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 
-namespace MrvBuilder.MetricsViews
+public sealed class DatabricksSqlWarehouseClient
 {
-    // Adjust these aliases to match your real namespaces/types.
-    using Old = Marvel.CubiQ.MrvDaxBuilder;
-    using New = MrvBuilder.MetricsViews;
+    private readonly HttpClient _http;
+    private readonly string _host;         // e.g. https://adb-xxx.azuredatabricks.net
+    private readonly string _warehouseId;  // SQL Warehouse ID
 
-    public interface IFilterAdapter<in TOldFilter, out TNewFilter>
+    public DatabricksSqlWarehouseClient(HttpClient http, string host, string token, string warehouseId)
     {
-        TNewFilter Adapt(TOldFilter oldFilter);
+        _http = http ?? throw new ArgumentNullException(nameof(http));
+        _host = host.TrimEnd('/');
+        _warehouseId = warehouseId;
+
+        _http.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", token);
     }
 
-    /// <summary>
-    /// Adapts your existing MRV Builder Filter objects into the simplified MetricsView Filter model.
-    ///
-    /// Responsibilities:
-    /// - Copy Dimension/Attribute/FilterType
-    /// - Convert FilterValue into either:
-    ///     - IN list (Values) if multiple tokens are detected
-    ///     - scalar (ScalarValue) if only one token is detected
-    /// - Infer numeric vs string for each token (basic heuristic)
-    ///
-    /// Notes:
-    /// - SourceTableName/SourceColumnName are intentionally NOT set here (or copied if already present).
-    ///   They are populated later by FilterSourceEnricher using SQL mapping.
-    /// </summary>
-    public sealed class FilterAdapter : IFilterAdapter<Old.Filter, New.Filter>
+    public async Task<string> ExecuteAsync(string sql, CancellationToken ct = default)
     {
-        public New.Filter Adapt(Old.Filter oldFilter)
+        // POST /api/2.0/sql/statements
+        var payload = new
         {
-            if (oldFilter is null) throw new ArgumentNullException(nameof(oldFilter));
+            warehouse_id = _warehouseId,
+            statement = sql,
+            wait_timeout = "0s" // return immediately; we will poll
+        };
 
-            var nf = new New.Filter
+        using var req = new HttpRequestMessage(HttpMethod.Post, $"{_host}/api/2.0/sql/statements")
+        {
+            Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+        };
+
+        using var resp = await _http.SendAsync(req, ct);
+        var body = await resp.Content.ReadAsStringAsync(ct);
+
+        if (!resp.IsSuccessStatusCode)
+            throw new InvalidOperationException($"Execute failed ({(int)resp.StatusCode}): {body}");
+
+        using var doc = JsonDocument.Parse(body);
+        return doc.RootElement.GetProperty("statement_id").GetString()
+               ?? throw new InvalidOperationException("Missing statement_id in response.");
+    }
+
+    public async Task WaitForCompletionAsync(string statementId, CancellationToken ct = default)
+    {
+        // GET /api/2.0/sql/statements/{statement_id}
+        while (true)
+        {
+            using var resp = await _http.GetAsync($"{_host}/api/2.0/sql/statements/{statementId}", ct);
+            var body = await resp.Content.ReadAsStringAsync(ct);
+
+            if (!resp.IsSuccessStatusCode)
+                throw new InvalidOperationException($"Poll failed ({(int)resp.StatusCode}): {body}");
+
+            using var doc = JsonDocument.Parse(body);
+            var status = doc.RootElement.GetProperty("status").GetProperty("state").GetString();
+
+            // States include: PENDING, RUNNING, SUCCEEDED, FAILED, CANCELED (and others).
+            if (string.Equals(status, "SUCCEEDED", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            if (string.Equals(status, "FAILED", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(status, "CANCELED", StringComparison.OrdinalIgnoreCase))
             {
-                Dimension = Normalize(oldFilter.Dimension),
-                Attribute = Normalize(oldFilter.Attribute),
-                FilterType = MapFilterType(oldFilter.FilterType),
+                var err = doc.RootElement.TryGetProperty("status", out var s) &&
+                          s.TryGetProperty("error", out var e)
+                    ? e.ToString()
+                    : body;
 
-                // If your old filter already has these properties populated, keep them.
-                // Otherwise, FilterSourceEnricher will populate them later.
-                SourceTableName = Normalize(GetIfExists(oldFilter, "SourceTableName")),
-                SourceColumnName = Normalize(GetIfExists(oldFilter, "SourceColumnName"))
-            };
-
-            var raw = (oldFilter.FilterValue ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(raw))
-                return nf;
-
-            // 1) Tokenize
-            var tokens = SplitToTokens(raw);
-
-            // 2) Decide scalar vs IN-list
-            if (tokens.Count <= 1)
-            {
-                var fv = ToFilterValue(tokens[0]);
-                nf.ScalarValue = fv.Raw;
-                nf.ScalarIsString = fv.IsString;
-                return nf;
+                throw new InvalidOperationException($"Statement {statementId} ended in {status}: {err}");
             }
 
-            foreach (var t in tokens)
-                nf.Values.Add(ToFilterValue(t));
-
-            return nf;
+            // Backoff: keep it modest to avoid hammering the API
+            await Task.Delay(TimeSpan.FromSeconds(1.5), ct);
         }
+    }
+}
 
-        private static New.FilterType MapFilterType(Old.FilterType oldType)
+public static class MetricViewBulkDeployer
+{
+    public static async Task DeployManyAsync(
+        DatabricksSqlWarehouseClient sqlClient,
+        string schema,
+        IReadOnlyList<(string ViewName, string Yaml)> metricViews,
+        int maxConcurrency = 12,
+        CancellationToken ct = default)
+    {
+        using var gate = new SemaphoreSlim(maxConcurrency);
+
+        var tasks = metricViews.Select(async mv =>
         {
-            // Adapt to your old enum values.
-            return oldType switch
+            await gate.WaitAsync(ct);
+            try
             {
-                Old.FilterType.Include => New.FilterType.Include,
-                Old.FilterType.Exclude => New.FilterType.Exclude,
+                // NOTE: Metric view DDL syntax can vary by workspace feature set.
+                // Use the exact CREATE statement you validated manually in SQL.
+                var ddl = $"""
+                CREATE OR REPLACE METRIC VIEW {schema}.{mv.ViewName}
+                AS YAML $$
+                {mv.Yaml}
+                $$;
+                """;
 
-                // If your old model has "TableInclude"/etc., treat as Include for now.
-                _ => New.FilterType.Include
-            };
-        }
-
-        /// <summary>
-        /// Splits FilterValue into tokens.
-        /// Handles common formats:
-        /// - "A" or "123"
-        /// - "A,B,C"
-        /// - "{A,B,C}"
-        /// - "IN {A, B, C}"
-        /// - "IN (A, B, C)"
-        /// - "\"A\"" or "'A'"
-        /// </summary>
-        private static List<string> SplitToTokens(string raw)
-        {
-            raw = raw.Trim();
-
-            // Remove a leading "IN" wrapper if present
-            // Example: IN {1,2} or IN (1,2)
-            if (raw.StartsWith("IN", StringComparison.OrdinalIgnoreCase))
-            {
-                raw = raw.Substring(2).TrimStart();
+                var stmtId = await sqlClient.ExecuteAsync(ddl, ct);
+                await sqlClient.WaitForCompletionAsync(stmtId, ct);
             }
-
-            // Strip surrounding braces/parens if the whole string is wrapped
-            raw = StripOuter(raw, '{', '}');
-            raw = StripOuter(raw, '(', ')');
-
-            // If after stripping it still contains commas, split
-            var tokens = raw.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-                            .Select(t => t.Trim())
-                            .Where(t => t.Length > 0)
-                            .ToList();
-
-            // If no commas, keep as single token
-            if (tokens.Count == 0)
-                tokens.Add(raw);
-
-            return tokens;
-        }
-
-        private static string StripOuter(string s, char open, char close)
-        {
-            s = s.Trim();
-            if (s.Length >= 2 && s[0] == open && s[^1] == close)
-                return s.Substring(1, s.Length - 2).Trim();
-            return s;
-        }
-
-        /// <summary>
-        /// Basic inference:
-        /// - If surrounded by quotes -> string
-        /// - If parses as long -> numeric
-        /// - Otherwise -> string
-        /// </summary>
-        private static New.FilterValue ToFilterValue(string token)
-        {
-            token = token.Trim();
-
-            // strip quotes
-            if ((token.StartsWith("\"") && token.EndsWith("\"")) ||
-                (token.StartsWith("'") && token.EndsWith("'")))
+            finally
             {
-                var inner = token.Substring(1, token.Length - 2);
-                return new New.FilterValue(inner, isString: true);
+                gate.Release();
             }
+        });
 
-            if (long.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
-                return new New.FilterValue(token, isString: false);
-
-            return new New.FilterValue(token, isString: true);
-        }
-
-        private static string? Normalize(string? s)
-            => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
-
-        /// <summary>
-        /// Lets this adapter compile even if your old Filter doesn't yet expose SourceTableName/SourceColumnName.
-        /// If your old class *does* have them, you can remove this and access directly.
-        /// </summary>
-        private static string? GetIfExists(object obj, string propName)
-        {
-            var p = obj.GetType().GetProperty(propName);
-            if (p == null) return null;
-            return p.GetValue(obj) as string;
-        }
+        await Task.WhenAll(tasks);
     }
 }
