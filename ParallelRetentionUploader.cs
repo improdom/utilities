@@ -1,20 +1,165 @@
-Hi QA Team,
+using System.Text.RegularExpressions;
+using Microsoft.AnalysisServices.Tabular;
 
-The error preventing execution of the stress tool was caused by the deletion of the Postgres database during the recent upgrade from version 16 to 17. Although upgrade notifications were sent, they did not indicate that databases from older or decommissioned teams would be removed.
+namespace MrvBuilder.MetricsViews;
 
-After discussing with DevOps, restoration of the original database is not feasible at this stage. To resolve the issue, the application has been migrated to SQL Managed Instance and is now fully functional.
+public sealed class AttributeMappingRow
+{
+    public required string TableName { get; init; }
+    public required string AttributeName { get; init; }
+    public required string DataType { get; init; }
+    public string? SourceTableName { get; init; }
+    public string? SourceColumnName { get; init; }
+}
 
-The tables have been recreated in **appdev** under the **marvel** database with the following names:
 
-* cubiq.st_arc_mrv_recon_target_data
-* cubiq.st_benchmark
-* cubiq.st_parameters
-* cubiq.st_query_runtime
-* cubiq.st_query_template
+public sealed class PowerBiSemanticModelAttributeMappingRepository
+{
+    private readonly string _xmlaConnectionString;
+    private readonly string? _databaseName;
 
-Please find attached the updated installation package configured to use SQL MI tables. Unfortunately, existing benchmark data could not be recovered, so benchmarks will need to be recreated before running the MRV reconciliation queries.
+    public PowerBiSemanticModelAttributeMappingRepository(string xmlaConnectionString, string? databaseName = null)
+    {
+        _xmlaConnectionString = xmlaConnectionString;
+        _databaseName = databaseName;
+    }
 
-Let me know if any support is needed during the setup.
+    public Task<List<AttributeMappingRow>> LoadAsync()
+    {
+        var results = new List<AttributeMappingRow>();
 
-Best regards,
-Julio
+        using var server = new Server();
+        server.Connect(_xmlaConnectionString);
+
+        var database = ResolveDatabase(server);
+        var model = database.Model ?? throw new InvalidOperationException("The semantic model database has no Tabular model.");
+
+        foreach (var table in model.Tables)
+        {
+            var sourceTableName = TryGetSourceTableName(table);
+
+            foreach (var column in table.Columns)
+            {
+                results.Add(new AttributeMappingRow
+                {
+                    TableName = table.Name,
+                    AttributeName = column.Name,
+                    DataType = column.DataType.ToString(),
+                    SourceTableName = sourceTableName,
+                    SourceColumnName = TryGetSourceColumnName(column)
+                });
+            }
+        }
+
+        return Task.FromResult(results);
+    }
+
+    private Database ResolveDatabase(Server server)
+    {
+        if (!string.IsNullOrWhiteSpace(_databaseName))
+        {
+            var named = server.Databases.Cast<Database>()
+                .FirstOrDefault(d => string.Equals(d.Name, _databaseName, StringComparison.OrdinalIgnoreCase));
+
+            if (named is null)
+                throw new InvalidOperationException($"Semantic model database '{_databaseName}' was not found on the XMLA endpoint.");
+
+            return named;
+        }
+
+        if (server.Databases.Count == 0)
+            throw new InvalidOperationException("No semantic model databases were found on the XMLA endpoint.");
+
+        if (server.Databases.Count > 1)
+        {
+            throw new InvalidOperationException(
+                "Multiple semantic model databases were found. Specify the database name when creating the repository.");
+        }
+
+        return server.Databases.Cast<Database>().Single();
+    }
+
+    private static string? TryGetSourceColumnName(Column column)
+    {
+        if (column is DataColumn dataColumn && !string.IsNullOrWhiteSpace(dataColumn.SourceColumn))
+            return dataColumn.SourceColumn;
+
+        return null;
+    }
+
+    private static string? TryGetSourceTableName(Table table)
+    {
+        foreach (var partition in table.Partitions)
+        {
+            var source = partition.Source;
+            if (source is null) continue;
+
+            var fromEntity = TryReadStringProperty(source, "EntityName");
+            if (!string.IsNullOrWhiteSpace(fromEntity))
+                return fromEntity;
+
+            var expression = TryReadStringProperty(source, "Expression");
+            var fromM = TryExtractTableFromM(expression);
+            if (!string.IsNullOrWhiteSpace(fromM))
+                return fromM;
+
+            var query = TryReadStringProperty(source, "Query");
+            var fromSql = TryExtractTableFromSql(query);
+            if (!string.IsNullOrWhiteSpace(fromSql))
+                return fromSql;
+        }
+
+        return null;
+    }
+
+    private static string? TryReadStringProperty(object instance, string propertyName)
+    {
+        var prop = instance.GetType().GetProperty(propertyName);
+        if (prop is null || prop.PropertyType != typeof(string))
+            return null;
+
+        return prop.GetValue(instance) as string;
+    }
+
+    private static string? TryExtractTableFromM(string? expression)
+    {
+        if (string.IsNullOrWhiteSpace(expression))
+            return null;
+
+        // Common Power Query navigation pattern: Source{[Schema="dbo",Item="Table"]}[Data]
+        var schemaMatch = Regex.Match(expression, @"Schema\s*=\s*""(?<schema>[^""]+)""", RegexOptions.IgnoreCase);
+        var itemMatch = Regex.Match(expression, @"Item\s*=\s*""(?<item>[^""]+)""", RegexOptions.IgnoreCase);
+        if (itemMatch.Success)
+        {
+            var item = itemMatch.Groups["item"].Value;
+            if (schemaMatch.Success)
+                return $"{schemaMatch.Groups["schema"].Value}.{item}";
+            return item;
+        }
+
+        // Fallback for direct entity references like #"FactSales"
+        var entityMatch = Regex.Match(expression, @"#""(?<entity>[^""]+)""");
+        return entityMatch.Success ? entityMatch.Groups["entity"].Value : null;
+    }
+
+    private static string? TryExtractTableFromSql(string? sql)
+    {
+        if (string.IsNullOrWhiteSpace(sql))
+            return null;
+
+        // Best-effort parse of the first FROM target.
+        var match = Regex.Match(
+            sql,
+            @"\bFROM\s+(?<table>(?:\[[^\]]+\]|""[^""]+""|\w+)(?:\s*\.\s*(?:\[[^\]]+\]|""[^""]+""|\w+))?)",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+        if (!match.Success)
+            return null;
+
+        var raw = match.Groups["table"].Value;
+        return raw.Replace("[", string.Empty)
+                  .Replace("]", string.Empty)
+                  .Replace("\"", string.Empty)
+                  .Replace(" ", string.Empty);
+    }
+}
