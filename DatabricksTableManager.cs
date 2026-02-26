@@ -1,5 +1,9 @@
 
 
+SELECT
+[CoB Date].[CoB Date].MEMBERS ON ROWS
+FROM [Arisk3D]
+
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -245,4 +249,5 @@ Please let me know if you have any concerns in the meantime.
 
 Best regards,
 Julio Diaz
+
 
