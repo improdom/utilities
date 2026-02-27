@@ -1,4 +1,15 @@
 
+static bool HasAnyExplicitValues(Dictionary<FilterType, List<string>?>? filter)
+{
+    if (filter is null || filter.Count == 0) return false;
+
+    return (filter.TryGetValue(FilterType.Include, out var inc) && inc is { Count: > 0 })
+        || (filter.TryGetValue(FilterType.Exclude, out var exc) && exc is { Count: > 0 });
+}
+
+
+
+
 void ApplyFilter(
     Dictionary<FilterType, List<string>?>? filter,
     IReadOnlyDictionary<string, HashSet<int>> lookup)
@@ -369,6 +380,7 @@ Please let me know if you have any concerns in the meantime.
 
 Best regards,
 Julio Diaz
+
 
 
 
