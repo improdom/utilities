@@ -1,3 +1,87 @@
+public IReadOnlyList<MrvPartitionInfo> Get(
+    Dictionary<FilterMode, IReadOnlyCollection<string>?>? measureNames = null,
+    Dictionary<FilterMode, IReadOnlyCollection<string>?>? scenarioGroups = null,
+    Dictionary<FilterMode, IReadOnlyCollection<string>?>? mdstDescriptions = null)
+{
+    var snap = _snapshot ?? throw new InvalidOperationException("Cache not loaded.");
+
+    // Include constraints -> intersect
+    var includeSets = new List<HashSet<int>>(capacity: 3);
+
+    // Exclusions -> remove at the end
+    var excludeUnion = new HashSet<int>();
+
+    // Helper to process one dimension (measure / scenario / mdst)
+    void ApplyFilter(
+        Dictionary<FilterMode, IReadOnlyCollection<string>?>? filter,
+        IReadOnlyDictionary<string, HashSet<int>> lookup)
+    {
+        if (filter is null || filter.Count == 0)
+            return;
+
+        // INCLUDE
+        if (filter.TryGetValue(FilterMode.Include, out var incValues) && incValues is { Count: > 0 })
+        {
+            var inc = ResolveMany(incValues, lookup);
+            if (inc is null || inc.Count == 0)
+            {
+                // If you asked to INCLUDE some values but none resolve, result must be empty.
+                includeSets.Add(new HashSet<int>()); // forces empty after intersection
+                return;
+            }
+
+            includeSets.Add(inc);
+        }
+
+        // EXCLUDE
+        if (filter.TryGetValue(FilterMode.Exclude, out var excValues) && excValues is { Count: > 0 })
+        {
+            var exc = ResolveMany(excValues, lookup);
+            if (exc is not null && exc.Count > 0)
+                excludeUnion.UnionWith(exc);
+        }
+    }
+
+    // Apply your three filter dimensions
+    ApplyFilter(measureNames, snap.ByMeasure);
+    ApplyFilter(scenarioGroups, snap.ByScenario);
+    ApplyFilter(mdstDescriptions, snap.ByMdst);
+
+    // --- Build starting result set ---
+    HashSet<int> resultIdx;
+
+    if (includeSets.Count > 0)
+    {
+        // Intersect smallest-to-largest
+        includeSets.Sort((a, b) => a.Count.CompareTo(b.Count));
+
+        resultIdx = new HashSet<int>(includeSets[0]);
+        for (var i = 1; i < includeSets.Count; i++)
+            resultIdx.IntersectWith(includeSets[i]);
+    }
+    else
+    {
+        // No include filters => start from ALL partitions (universe)
+        // snap.Rows appears to be your row list indexed by partition idx
+        resultIdx = new HashSet<int>(Enumerable.Range(0, snap.Rows.Count));
+    }
+
+    // --- Apply exclusions last ---
+    if (excludeUnion.Count > 0)
+        resultIdx.ExceptWith(excludeUnion);
+
+    if (resultIdx.Count == 0)
+        return Array.Empty<MrvPartitionInfo>();
+
+    // Materialize rows
+    return resultIdx.Select(i => snap.Rows[i]).ToList();
+}
+
+
+
+
+
+
 
 
 SELECT
@@ -249,5 +333,6 @@ Please let me know if you have any concerns in the meantime.
 
 Best regards,
 Julio Diaz
+
 
 
