@@ -1,3 +1,39 @@
+
+void ApplyFilter(
+    Dictionary<FilterType, List<string>?>? filter,
+    IReadOnlyDictionary<string, HashSet<int>> lookup)
+{
+    // If user did not explicitly provide any include/exclude values -> do nothing
+    if (!HasAnyExplicitValues(filter))
+        return;
+
+    // INCLUDE: only if explicitly provided and non-empty
+    if (filter!.TryGetValue(FilterType.Include, out var incValues) && incValues is { Count: > 0 })
+    {
+        var inc = ResolveMany(incValues, lookup);
+
+        // IMPORTANT: this "force empty" is correct ONLY when include was explicitly requested (Count > 0)
+        if (inc is null || inc.Count == 0)
+        {
+            includeSets.Add(new HashSet<int>()); // forces empty after intersection
+            return;
+        }
+
+        includeSets.Add(inc);
+    }
+
+    // EXCLUDE: only if explicitly provided and non-empty
+    if (filter.TryGetValue(FilterType.Exclude, out var excValues) && excValues is { Count: > 0 })
+    {
+        var exc = ResolveMany(excValues, lookup);
+        if (exc is { Count: > 0 })
+            excludeUnion.UnionWith(exc);
+    }
+}
+
+
+
+
 public IReadOnlyList<MrvPartitionInfo> Get(
     Dictionary<FilterMode, IReadOnlyCollection<string>?>? measureNames = null,
     Dictionary<FilterMode, IReadOnlyCollection<string>?>? scenarioGroups = null,
@@ -333,6 +369,7 @@ Please let me know if you have any concerns in the meantime.
 
 Best regards,
 Julio Diaz
+
 
 
 
