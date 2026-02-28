@@ -42,3 +42,26 @@ SELECT
     100.0 * SUM(CASE WHEN status = 'Match' THEN 1 ELSE 0 END) / COUNT(*) AS match_pct,
     100.0 * SUM(CASE WHEN status = 'Mismatch' THEN 1 ELSE 0 END) / COUNT(*) AS mismatch_pct
 FROM R;
+
+
+
+Hi Pradeep and Team,
+
+As discussed in the channel, the MRV reconciliation dashboard in Databricks appears to be malfunctioning. It is currently reporting a 100% mismatch even when valid input parameters are provided.
+
+For reference, the inputs used were:
+
+• **business_date:** 2026-02-09
+• **cube_benchmark_run_id:** 8544
+• **pbi_benchmark_run_id:** 8640
+
+Since the reconciliation data is persisted in the SQL MI table, I performed a direct comparison at the database level to validate the results. The analysis confirms that mismatches are present between the Cube and Power BI values for the MRVs listed below.
+
+Please find the detailed comparison attached for your review.
+
+Kindly let me know if any additional information or validation is required from our side to help investigate and resolve this discrepancy.
+
+Best regards,
+Julio
+
+
