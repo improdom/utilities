@@ -36,3 +36,8 @@ FULL OUTER JOIN B
     ON A.mrv_id = B.mrv_id
    AND A.measurename = B.measurename
 ORDER BY mrv_id, measurename;
+
+WHERE
+    A.runA_sum IS NULL
+    OR B.runB_sum IS NULL
+    OR ABS(A.runA_sum - B.runB_sum) > @eps
