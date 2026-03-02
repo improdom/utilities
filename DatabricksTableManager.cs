@@ -1,4 +1,68 @@
 
+using System;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Globalization;
+
+public static class SqlIdentifierHelper
+{
+    public static string ToSqlIdentifier(string input, int maxLength = 120)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            throw new ArgumentException("Input cannot be null or empty.", nameof(input));
+
+        // 1. Normalize accents (if any)
+        string normalized = input.Normalize(NormalizationForm.FormD);
+        var sb = new StringBuilder();
+
+        foreach (char c in normalized)
+        {
+            var unicodeCategory = CharUnicodeInfo.GetUnicodeCategory(c);
+            if (unicodeCategory != UnicodeCategory.NonSpacingMark)
+                sb.Append(c);
+        }
+
+        string cleaned = sb.ToString().Normalize(NormalizationForm.FormC);
+
+        // 2. Replace common semantic separators with underscore
+        cleaned = cleaned
+            .Replace("+", " plus ")
+            .Replace("/", " ")
+            .Replace("-", " ")
+            .Replace("(", " ")
+            .Replace(")", " ");
+
+        // 3. Remove everything except letters, numbers and spaces
+        cleaned = Regex.Replace(cleaned, @"[^a-zA-Z0-9\s]", "");
+
+        // 4. Convert spaces to underscores
+        cleaned = Regex.Replace(cleaned.Trim(), @"\s+", "_");
+
+        // 5. Remove duplicate underscores
+        cleaned = Regex.Replace(cleaned, @"_+", "_");
+
+        // 6. Lowercase for consistency (optional but recommended)
+        cleaned = cleaned.ToLowerInvariant();
+
+        // 7. Ensure it does not start with a digit
+        if (char.IsDigit(cleaned[0]))
+            cleaned = "m_" + cleaned;
+
+        // 8. Trim length safely
+        if (cleaned.Length > maxLength)
+            cleaned = cleaned.Substring(0, maxLength);
+
+        return cleaned;
+    }
+}
+
+
+
+
+
+
+
+
 catalog = "your_catalog"
 schema = "your_schema"
 owner_to_delete = "service_principal_name_or_user"
@@ -403,6 +467,7 @@ Please let me know if you have any concerns in the meantime.
 
 Best regards,
 Julio Diaz
+
 
 
 
