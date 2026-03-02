@@ -1,4 +1,27 @@
 
+catalog = "your_catalog"
+schema = "your_schema"
+owner_to_delete = "service_principal_name_or_user"
+
+query = f"""
+SELECT metric_view_name
+FROM {catalog}.information_schema.metric_views
+WHERE table_schema = '{schema}'
+AND table_owner = '{owner_to_delete}'
+"""
+
+metric_views = spark.sql(query)
+
+for row in metric_views.collect():
+    mv_name = row.metric_view_name
+    full_name = f"{catalog}.{schema}.{mv_name}"
+    print(f"Dropping {full_name}")
+    spark.sql(f"DROP METRIC VIEW IF EXISTS {full_name}")
+
+
+
+
+
 static bool HasAnyExplicitValues(Dictionary<FilterType, List<string>?>? filter)
 {
     if (filter is null || filter.Count == 0) return false;
@@ -380,6 +403,7 @@ Please let me know if you have any concerns in the meantime.
 
 Best regards,
 Julio Diaz
+
 
 
 
