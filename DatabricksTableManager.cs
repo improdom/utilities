@@ -1,3 +1,42 @@
+
+TV Change EQ ex Funds Slide - Single Stock +/-20% :=
+VAR HasOneMag =
+    HASONEVALUE ( Scenario[Stress Magnitude] )
+VAR Mag =
+    SELECTEDVALUE ( Scenario[Stress Magnitude] )
+VAR MagInRange =
+    Mag >= -20 && Mag <= 20 && Mag <> 0
+
+-- “Temp1” logic used only when magnitude is NOT on the axis
+VAR Temp1 =
+    MINX (
+        CROSSJOIN (
+            ALL ( Scenario[Scenario Name] ),
+            FILTER (
+                ALL ( Scenario[Stress Magnitude] ),
+                Scenario[Stress Magnitude] >= -20
+                    && Scenario[Stress Magnitude] <= 20
+                    && Scenario[Stress Magnitude] <> 0
+            )
+        ),
+        [TV Change EQ ex Funds - Single Stock]
+    )
+RETURN
+    IF (
+        HasOneMag,
+        -- MDX SCOPE behavior: show base only for allowed magnitudes, else BLANK
+        IF ( MagInRange, [TV Change EQ ex Funds - Single Stock], BLANK() ),
+        -- MDX formula behavior (totals): worst-case, capped at <= 0
+        IF ( ISBLANK ( Temp1 ), BLANK(), MIN ( 0, Temp1 ) )
+    )
+
+
+
+
+
+
+
+
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
@@ -558,6 +597,7 @@ Please let me know if you have any concerns in the meantime.
 
 Best regards,
 Julio Diaz
+
 
 
 
