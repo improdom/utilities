@@ -1,3 +1,36 @@
+TV Change EQ ex Funds Slide - Single Stock +/-20% - New :=
+VAR HasOneMag =
+    HASONEVALUE ( Scenario[Stress Magnitude Num] )
+VAR Mag =
+    SELECTEDVALUE ( Scenario[Stress Magnitude Num] )
+VAR MagInRange =
+    Mag >= -20 && Mag <= 20 && Mag <> 0
+VAR Temp1 =
+    MINX (
+        CROSSJOIN (
+            ALL ( Scenario[Scenario Name] ),
+            FILTER (
+                ALL ( Scenario[Stress Magnitude Num] ),
+                Scenario[Stress Magnitude Num] >= -20
+                    && Scenario[Stress Magnitude Num] <= 20
+                    && Scenario[Stress Magnitude Num] <> 0
+            )
+        ),
+        [TV Change EQ ex Funds - Single Stock]
+    )
+RETURN
+    IF (
+        HasOneMag,
+        IF ( MagInRange, [TV Change EQ ex Funds - Single Stock], BLANK() ),
+        IF ( ISBLANK ( Temp1 ), BLANK(), MIN ( 0, Temp1 ) )
+    )
+
+
+
+
+
+
+
 
 TV Change EQ ex Funds Slide - Single Stock +/-20% :=
 VAR HasOneMag =
@@ -597,6 +630,7 @@ Please let me know if you have any concerns in the meantime.
 
 Best regards,
 Julio Diaz
+
 
 
 
