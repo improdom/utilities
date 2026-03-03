@@ -1,3 +1,94 @@
+from pyspark.sql.functions import *
+from pyspark.sql.types import *
+
+pbi_bm_id = f"""({",".join([item.strip() for item in dbutils.widgets.get("pbi_benchmark_run_id").split(",")])})"""
+cube_bm_id = f"""({",".join([item.strip() for item in dbutils.widgets.get("cube_benchmark_run_id").split(",")])})"""
+
+def read_from_sql_mi_table(table_name):
+    hostname = dbutils.secrets.get("mtrc-abd-secret-scope", "MarvelAppConfig-DbServer")
+    dbname   = dbutils.secrets.get("mtrc-abd-secret-scope", "MarvelAppConfig-DbName")
+    username = dbutils.secrets.get("mtrc-abd-secret-scope", "MarvelAppConfig-DbUser")
+    password = dbutils.secrets.get("mtrc-abd-secret-scope", "MarvelAppConfig-DbPassword")
+
+    driver = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
+    connectionString = (
+        f"jdbc:sqlserver://{hostname}:1433;"
+        f"database={dbname};"
+        "encrypt=true;"
+        "trustServerCertificate=false;"
+        "loginTimeout=60;"
+        "authentication=ActiveDirectoryPassword;"
+    )
+
+    return (
+        spark.read.format("jdbc")
+        .option("driver", driver)
+        .option("url", connectionString)
+        .option("dbtable", table_name)
+        .option("user", username)
+        .option("password", password)
+        .load()
+    )
+
+# --- NEW: robust business_date parser (handles mixed string formats) ---
+def normalize_business_date(df, col_name="business_date"):
+    s = trim(col(col_name).cast("string"))
+    return df.withColumn(
+        col_name,
+        coalesce(
+            to_date(s, "yyyy-MM-dd"),                          # ISO
+            to_date(to_timestamp(s, "M/d/yyyy h:mm:ss a")),    # SQL MI style: 2/10/2026 12:00:00 AM
+            to_date(to_timestamp(s, "MM/dd/yyyy h:mm:ss a"))   # just in case of leading zeros
+        )
+    )
+
+current_timestamp_col = current_timestamp()
+
+# -------------------------
+# Power BI Data read
+# -------------------------
+df_pbi = (
+    read_from_sql_mi_table("cubiq.st_mrv_recon_target_data")
+    .filter(f"benchmark_run_id in {pbi_bm_id}")
+    .select("business_date", "level_value", "src_book_id", "source", "measurename", "level_name", "mrv_id", "measurevalue")
+)
+
+df_pbi = (
+    normalize_business_date(df_pbi, "business_date")
+    .withColumn("measurevalue", col("measurevalue").cast("double"))
+    .withColumn("update_time", current_timestamp_col)
+)
+
+# -------------------------
+# CUBE Data read
+# -------------------------
+df_cube = (
+    read_from_sql_mi_table("cubiq.st_mrv_recon_target_data")
+    .filter(f"benchmark_run_id in {cube_bm_id}")
+    .select("business_date", "level_value", "src_book_id", "source", "measurename", "level_name", "mrv_id", "measurevalue")
+)
+
+df_cube = (
+    normalize_business_date(df_cube, "business_date")   # <-- FIX: parse, don’t cast
+    .withColumn("measurevalue", col("measurevalue").cast("double"))
+    .withColumn("update_time", current_timestamp_col)
+)
+
+print("CUBE Record Count  =", df_cube.count())
+print("PBI  Record Count  =", df_pbi.count())
+
+display(df_pbi.select("business_date").groupBy("business_date").count().orderBy("business_date"))
+display(df_cube.select("business_date").groupBy("business_date").count().orderBy("business_date"))
+
+df_pbi.createOrReplaceTempView("df_pbi")
+df_cube.createOrReplaceTempView("df_cube")
+
+
+
+
+
+
+
 
 using System;
 using System.Text;
@@ -467,6 +558,7 @@ Please let me know if you have any concerns in the meantime.
 
 Best regards,
 Julio Diaz
+
 
 
 
