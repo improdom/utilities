@@ -1,3 +1,26 @@
+
+Hi Venkat / Abhishek,
+
+Could you please verify the following? I believe this was the root cause of the mismatches observed during today’s reconciliation.
+
+The issue appears to be that the models were inverted:
+	•	CubeIQ was running in DirectQuery mode
+	•	CubeIQ_App was running in Import mode
+
+In CubeIQ, the values are loaded into memory and Power BI ignores case differences because it is not case-sensitive.
+However, CubeIQ_App retrieves all data directly from Databricks, which is case-sensitive, resulting in the mismatches.
+
+We did not catch this earlier because the reconciliation was only executed in CubeIQ. The discrepancy was only discovered when the reconciliation was accidentally executed in CubeIQ_App.
+
+Could you please rerun the reconciliation to confirm that coverage is correct now that the issue has been addressed?
+
+Regarding today’s fix, I have already deployed the change to app_dev. We will move it to TEST once the ETL side is ready.
+
+
+
+
+
+
 TV Change EQ ex Funds Slide - Single Stock +/-20% - New :=
 VAR HasOneMag =
     HASONEVALUE ( Scenario[Stress Magnitude Num] )
@@ -630,6 +653,7 @@ Please let me know if you have any concerns in the meantime.
 
 Best regards,
 Julio Diaz
+
 
 
 
