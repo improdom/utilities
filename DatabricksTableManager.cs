@@ -1,4 +1,13 @@
 
+Hi,
+
+I performed a deeper analysis and ran the reconciliation on both CubIQ and CubIQ App. I still observe a small deviation in the coverage; however, it is not as significant as the discrepancy observed in today’s reconciliation for Feb 9th.
+
+This suggests that additional factors are likely contributing to the mismatches.
+
+
+
+
 Hi Venkat / Abhishek,
 
 Could you please verify the following? I believe this was the root cause of the mismatches observed during today’s reconciliation.
@@ -653,6 +662,7 @@ Please let me know if you have any concerns in the meantime.
 
 Best regards,
 Julio Diaz
+
 
 
 
