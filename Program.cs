@@ -26,6 +26,13 @@ if (files.Count == 0)
 
 var allMatches = new List<KeepFiltersMatch>();
 var totalMeasures = 0;
+var excludedAttributes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    "risk_report_view[mrv_partition]",
+    "risk_report_view[FactNum]",
+    "risk_report_view[lingua_risk_measure_id]",
+    "risk_bucketing_report_view[lingua_risk_measure_id]"
+};
 
 foreach (var file in files)
 {
@@ -37,11 +44,16 @@ foreach (var file in files)
     {
         foreach (var filter in KeepFiltersParser.Extract(measure.Expression))
         {
+            if (excludedAttributes.Contains(filter.Attribute))
+            {
+                continue;
+            }
+
             allMatches.Add(new KeepFiltersMatch(
                 Path.GetFileName(file),
                 measure.Name,
                 filter.Attribute,
-                filter.Operator,
+                filter.MatchType,
                 filter.Values));
         }
     }
@@ -143,7 +155,7 @@ static void PrintUsage()
 
 internal sealed record MeasureDefinition(string Name, string Expression);
 
-internal sealed record ParsedKeepFilters(string Attribute, string Operator, IReadOnlyList<string> Values);
+internal sealed record ParsedKeepFilters(string Attribute, string MatchType, IReadOnlyList<string> Values);
 
 internal sealed record KeepFiltersMatch(
     string FileName,
@@ -360,7 +372,19 @@ internal static class KeepFiltersParser
             : attributeMatch.Groups[2].Value;
         var columnName = attributeMatch.Groups[3].Value;
         var attribute = $"{tableName}[{columnName}]";
+        var prefix = compact[..attributeMatch.Index].Trim();
         var remainder = compact[(attributeMatch.Index + attributeMatch.Length)..].Trim();
+        var isNotIn = prefix.StartsWith("NOT", StringComparison.OrdinalIgnoreCase);
+
+        if (remainder.StartsWith("NOT", StringComparison.OrdinalIgnoreCase))
+        {
+            isNotIn = true;
+            remainder = remainder[3..].Trim();
+            if (remainder.StartsWith("(", StringComparison.Ordinal) && remainder.EndsWith(")", StringComparison.Ordinal))
+            {
+                remainder = remainder[1..^1].Trim();
+            }
+        }
 
         if (remainder.StartsWith("IN", StringComparison.OrdinalIgnoreCase))
         {
@@ -368,7 +392,10 @@ internal static class KeepFiltersParser
             var endBrace = remainder.LastIndexOf('}');
             if (startBrace >= 0 && endBrace > startBrace)
             {
-                return new ParsedKeepFilters(attribute, "IN", ParseValueList(remainder[(startBrace + 1)..endBrace]));
+                return new ParsedKeepFilters(
+                    attribute,
+                    isNotIn ? "Does Not Contain" : "Contains",
+                    ParseValueList(remainder[(startBrace + 1)..endBrace]));
             }
         }
 
@@ -381,7 +408,7 @@ internal static class KeepFiltersParser
                 new[] { CleanupValue(operatorMatch.Groups[2].Value) });
         }
 
-        return new ParsedKeepFilters(attribute, "FILTER", new[] { CleanupValue(remainder) });
+        return new ParsedKeepFilters(attribute, isNotIn ? "Does Not Contain" : "FILTER", new[] { CleanupValue(remainder) });
     }
 
     private static IReadOnlyList<string> ParseValueList(string valuesText)
