@@ -1,3 +1,18 @@
+Hi Farhan,
+
+As discussed, in order to provide an accurate estimate, we first need to conduct a technical assessment of the modules and pages where these libraries are currently in use.
+
+To support this effort, I will need assistance from a developer with broader familiarity across the application, as my experience is limited to a specific area. I have scheduled a session with Nancy and Lokesh tomorrow to begin this assessment and establish an initial estimate.
+
+I will keep you informed as we progress and refine the timeline.
+
+Best regards,
+
+
+
+
+
+
 Hi [Manager Name],
 
 As part of the vulnerability scan remediation, we are required to upgrade jQuery from version 1.12.3 to a secure version (3.2+).
