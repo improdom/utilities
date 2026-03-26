@@ -1,46 +1,30 @@
-private static string? TryExtractTableFromM(string? expression)
+using YamlDotNet.Serialization;
+using YamlDotNet.Serialization.NamingConventions;
+
+public static string Rename(string yaml)
 {
-    if (string.IsNullOrWhiteSpace(expression))
-        return null;
+    var deserializer = new DeserializerBuilder()
+        .WithNamingConvention(CamelCaseNamingConvention.Instance)
+        .Build();
 
-    var matches = Regex.Matches(
-        expression,
-        @"\{\s*\[\s*Name\s*=\s*(?:""(?<nameq>[^""]+)""|(?<namev>[A-Za-z_][A-Za-z0-9_]*))\s*,\s*Kind\s*=\s*""(?<kind>[^""]+)""\s*\]\s*\}\s*\[Data\]",
-        RegexOptions.IgnoreCase | RegexOptions.Multiline);
+    var serializer = new SerializerBuilder()
+        .WithNamingConvention(CamelCaseNamingConvention.Instance)
+        .Build();
 
-    if (matches.Count == 0)
-        return null;
+    var model = deserializer.Deserialize<MetricView>(yaml);
 
-    string? database = null;
-    string? schema = null;
-    string? table = null;
-
-    foreach (Match match in matches)
+    foreach (var dim in model.Dimensions)
     {
-        var name = match.Groups["nameq"].Success
-            ? match.Groups["nameq"].Value
-            : match.Groups["namev"].Value;
-
-        var kind = match.Groups["kind"].Value;
-
-        if (kind.Equals("Database", StringComparison.OrdinalIgnoreCase))
-            database = name;
-        else if (kind.Equals("Schema", StringComparison.OrdinalIgnoreCase))
-            schema = name;
-        else if (kind.Equals("Table", StringComparison.OrdinalIgnoreCase))
-            table = name;
+        dim.Name = TransformName(dim.Name);
     }
 
-    if (!string.IsNullOrWhiteSpace(table))
-    {
-        if (!string.IsNullOrWhiteSpace(schema))
-            return $"{schema}.{table}";
+    return serializer.Serialize(model);
+}
 
-        if (!string.IsNullOrWhiteSpace(database))
-            return $"{database}.{table}";
-
-        return table;
-    }
-
-    return null;
+private static string TransformName(string name)
+{
+    return name
+        .Replace("_", " ")
+        .Trim()
+        .ToLowerInvariant(); // or TitleCase if needed
 }
