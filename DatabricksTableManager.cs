@@ -1,4 +1,107 @@
 
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+public static class FilterMerger
+{
+    public static List<Filter> MergeFilters(IEnumerable<Filter> filters)
+    {
+        if (filters == null)
+            return new List<Filter>();
+
+        var result = new List<Filter>();
+
+        // Keep filters that qualify for merge
+        var mergeCandidates = filters
+            .Where(CanBeMerged)
+            .GroupBy(f => new MergeKey(
+                f.Dimension,
+                f.Attribute,
+                f.FilterType,
+                f.ScalarValue))
+            .ToList();
+
+        foreach (var group in mergeCandidates)
+        {
+            var first = group.First();
+
+            var mergedValues = group
+                .SelectMany(f => GetAllValues(f))
+                .Where(v => v != null && !string.IsNullOrWhiteSpace(v.Value))
+                .GroupBy(v => new { v.Value, v.IsNumeric })
+                .Select(g => g.First())
+                .ToList();
+
+            var mergedFilter = new Filter
+            {
+                Dimension = first.Dimension,
+                Attribute = first.Attribute,
+                FilterType = first.FilterType,
+                SourceTableName = first.SourceTableName,
+                SourceColumnName = first.SourceColumnName,
+                ScalarValue = null,          // moved into Values
+                ScalarIsString = first.ScalarIsString,
+                Values = mergedValues
+            };
+
+            result.Add(mergedFilter);
+        }
+
+        // Keep all non-mergeable filters unchanged
+        var nonMergeCandidates = filters
+            .Where(f => !CanBeMerged(f));
+
+        result.AddRange(nonMergeCandidates);
+
+        return result;
+    }
+
+    private static bool CanBeMerged(Filter filter)
+    {
+        if (filter == null)
+            return false;
+
+        // Must have exactly one scalar value
+        if (string.IsNullOrWhiteSpace(filter.ScalarValue))
+            return false;
+
+        // Only merge filters that do not already have Values populated
+        if (filter.Values != null && filter.Values.Count > 0)
+            return false;
+
+        return !string.IsNullOrWhiteSpace(filter.Dimension)
+            && !string.IsNullOrWhiteSpace(filter.Attribute);
+    }
+
+    private static IEnumerable<FilterValue> GetAllValues(Filter filter)
+    {
+        var values = new List<FilterValue>();
+
+        if (!string.IsNullOrWhiteSpace(filter.ScalarValue))
+        {
+            values.Add(new FilterValue(filter.ScalarValue, !filter.ScalarIsString));
+        }
+
+        if (filter.Values != null && filter.Values.Count > 0)
+        {
+            values.AddRange(filter.Values.Where(v => v != null));
+        }
+
+        return values;
+    }
+
+    private sealed record MergeKey(
+        string? Dimension,
+        string? Attribute,
+        FilterType FilterType,
+        string? ScalarValue);
+}
+
+
+
+
+
 public static List<Filter> MergeFilters(IEnumerable<Filter> filters)
 {
     if (filters == null)
