@@ -1,6 +1,124 @@
 
 using System;
 using System.Collections.Generic;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading.Tasks;
+
+public sealed class DatabricksTableItem
+{
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("full_name")]
+    public string? FullName { get; set; }
+
+    [JsonPropertyName("catalog_name")]
+    public string? CatalogName { get; set; }
+
+    [JsonPropertyName("schema_name")]
+    public string? SchemaName { get; set; }
+
+    [JsonPropertyName("table_type")]
+    public string? TableType { get; set; }
+
+    [JsonPropertyName("view_definition")]
+    public string? ViewDefinition { get; set; }
+}
+
+public sealed class ListTablesResponse
+{
+    [JsonPropertyName("tables")]
+    public List<DatabricksTableItem>? Tables { get; set; }
+
+    [JsonPropertyName("next_page_token")]
+    public string? NextPageToken { get; set; }
+}
+
+public sealed class DatabricksViewInfo
+{
+    public string CatalogName { get; set; } = "";
+    public string SchemaName { get; set; } = "";
+    public string ViewName { get; set; } = "";
+    public string FullName { get; set; } = "";
+    public string? ViewDefinition { get; set; }
+}
+
+public sealed class DatabricksUnityCatalogClient
+{
+    private readonly HttpClient _httpClient;
+    private readonly string _workspaceUrl;
+
+    public DatabricksUnityCatalogClient(string workspaceUrl, string token, HttpClient? httpClient = null)
+    {
+        _workspaceUrl = workspaceUrl.TrimEnd('/');
+        _httpClient = httpClient ?? new HttpClient();
+
+        _httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", token);
+    }
+
+    public async Task<List<DatabricksViewInfo>> GetViewsInSchemaAsync(string catalogName, string schemaName)
+    {
+        var results = new List<DatabricksViewInfo>();
+        string? pageToken = null;
+
+        do
+        {
+            var url =
+                $"{_workspaceUrl}/api/2.1/unity-catalog/tables" +
+                $"?catalog_name={Uri.EscapeDataString(catalogName)}" +
+                $"&schema_name={Uri.EscapeDataString(schemaName)}";
+
+            if (!string.IsNullOrWhiteSpace(pageToken))
+            {
+                url += $"&page_token={Uri.EscapeDataString(pageToken)}";
+            }
+
+            using var response = await _httpClient.GetAsync(url);
+            var json = await response.Content.ReadAsStringAsync();
+
+            response.EnsureSuccessStatusCode();
+
+            var payload = JsonSerializer.Deserialize<ListTablesResponse>(
+                json,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (payload?.Tables != null)
+            {
+                foreach (var item in payload.Tables)
+                {
+                    if (string.Equals(item.TableType, "VIEW", StringComparison.OrdinalIgnoreCase))
+                    {
+                        results.Add(new DatabricksViewInfo
+                        {
+                            CatalogName = item.CatalogName ?? catalogName,
+                            SchemaName = item.SchemaName ?? schemaName,
+                            ViewName = item.Name ?? "",
+                            FullName = item.FullName ?? $"{catalogName}.{schemaName}.{item.Name}",
+                            ViewDefinition = item.ViewDefinition
+                        });
+                    }
+                }
+            }
+
+            pageToken = payload?.NextPageToken;
+        }
+        while (!string.IsNullOrWhiteSpace(pageToken));
+
+        return results;
+    }
+}
+
+-----
+
+
+
+
+using System;
+using System.Collections.Generic;
 using System.Linq;
 
 public static class FilterMerger
