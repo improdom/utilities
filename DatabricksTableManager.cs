@@ -1,3 +1,55 @@
+
+public static List<Filter> MergeFilters(IEnumerable<Filter> filters)
+{
+    if (filters == null)
+        return new List<Filter>();
+
+    var result = new List<Filter>();
+
+    var mergeCandidates = filters
+        .Where(CanBeMerged)
+        .GroupBy(f => new
+        {
+            f.Dimension,
+            f.Attribute,
+            f.FilterType
+        });
+
+    foreach (var group in mergeCandidates)
+    {
+        var first = group.First();
+
+        var mergedValues = group
+            .Select(f => new FilterValue(f.ScalarValue!, !f.ScalarIsString))
+            .GroupBy(v => new { v.Value, v.IsNumeric })
+            .Select(g => g.First())
+            .ToList();
+
+        result.Add(new Filter
+        {
+            Dimension = first.Dimension,
+            Attribute = first.Attribute,
+            FilterType = first.FilterType,
+            SourceTableName = first.SourceTableName,
+            SourceColumnName = first.SourceColumnName,
+            ScalarValue = null,
+            ScalarIsString = first.ScalarIsString,
+            Values = mergedValues
+        });
+    }
+
+    result.AddRange(filters.Where(f => !CanBeMerged(f)));
+
+    return result;
+}
+
+
+
+
+
+
+
+
 using System;
 using System.Collections.Generic;
 using System.IO;
