@@ -1,378 +1,156 @@
+# Root folder of your cloned GitLab repo
+$repoRoot = "C:\Repos\Mars"
 
-using System;
-using System.Collections.Generic;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Threading.Tasks;
+# Output CSV
+$outputCsv = Join-Path $repoRoot "kendo_inventory_detailed.csv"
 
-public sealed class DatabricksTableItem
-{
-    [JsonPropertyName("name")]
-    public string? Name { get; set; }
+# File types to scan
+$fileExtensions = @(
+    ".cshtml", ".aspx", ".ascx", ".html",
+    ".js", ".ts",
+    ".csproj", ".config", ".json"
+)
 
-    [JsonPropertyName("full_name")]
-    public string? FullName { get; set; }
+# General Kendo patterns
+$generalPatterns = @(
+    'Html\.Kendo\(\)',
+    '\.kendo[A-Za-z0-9_]+\(',
+    'Kendo\.Mvc',
+    'kendo\.all',
+    'kendo\.common',
+    'kendo\.default',
+    '@progress/kendo-ui',
+    'data-role\s*=\s*"[^"]+"'
+)
 
-    [JsonPropertyName("catalog_name")]
-    public string? CatalogName { get; set; }
-
-    [JsonPropertyName("schema_name")]
-    public string? SchemaName { get; set; }
-
-    [JsonPropertyName("table_type")]
-    public string? TableType { get; set; }
-
-    [JsonPropertyName("view_definition")]
-    public string? ViewDefinition { get; set; }
+# Known Kendo controls to identify
+$controlPatterns = @{
+    "Grid"              = 'Html\.Kendo\(\)\.Grid|\.kendoGrid\(|data-role\s*=\s*"grid"'
+    "DropDownList"      = 'Html\.Kendo\(\)\.DropDownList|\.kendoDropDownList\(|data-role\s*=\s*"dropdownlist"'
+    "ComboBox"          = 'Html\.Kendo\(\)\.ComboBox|\.kendoComboBox\(|data-role\s*=\s*"combobox"'
+    "MultiSelect"       = 'Html\.Kendo\(\)\.MultiSelect|\.kendoMultiSelect\(|data-role\s*=\s*"multiselect"'
+    "DatePicker"        = 'Html\.Kendo\(\)\.DatePicker|\.kendoDatePicker\(|data-role\s*=\s*"datepicker"'
+    "DateTimePicker"    = 'Html\.Kendo\(\)\.DateTimePicker|\.kendoDateTimePicker\(|data-role\s*=\s*"datetimepicker"'
+    "TimePicker"        = 'Html\.Kendo\(\)\.TimePicker|\.kendoTimePicker\(|data-role\s*=\s*"timepicker"'
+    "NumericTextBox"    = 'Html\.Kendo\(\)\.NumericTextBox|\.kendoNumericTextBox\(|data-role\s*=\s*"numerictextbox"'
+    "Window"            = 'Html\.Kendo\(\)\.Window|\.kendoWindow\(|data-role\s*=\s*"window"'
+    "Editor"            = 'Html\.Kendo\(\)\.Editor|\.kendoEditor\(|data-role\s*=\s*"editor"'
+    "TabStrip"          = 'Html\.Kendo\(\)\.TabStrip|\.kendoTabStrip\(|data-role\s*=\s*"tabstrip"'
+    "TreeView"          = 'Html\.Kendo\(\)\.TreeView|\.kendoTreeView\(|data-role\s*=\s*"treeview"'
+    "Upload"            = 'Html\.Kendo\(\)\.Upload|\.kendoUpload\(|data-role\s*=\s*"upload"'
+    "Chart"             = 'Html\.Kendo\(\)\.Chart|\.kendoChart\(|data-role\s*=\s*"chart"'
+    "Scheduler"         = 'Html\.Kendo\(\)\.Scheduler|\.kendoScheduler\(|data-role\s*=\s*"scheduler"'
+    "ListView"          = 'Html\.Kendo\(\)\.ListView|\.kendoListView\(|data-role\s*=\s*"listview"'
+    "AutoComplete"      = 'Html\.Kendo\(\)\.AutoComplete|\.kendoAutoComplete\(|data-role\s*=\s*"autocomplete"'
+    "PanelBar"          = 'Html\.Kendo\(\)\.PanelBar|\.kendoPanelBar\(|data-role\s*=\s*"panelbar"'
+    "Menu"              = 'Html\.Kendo\(\)\.Menu|\.kendoMenu\(|data-role\s*=\s*"menu"'
+    "Tooltip"           = 'Html\.Kendo\(\)\.Tooltip|\.kendoTooltip\(|data-role\s*=\s*"tooltip"'
+    "Splitter"          = 'Html\.Kendo\(\)\.Splitter|\.kendoSplitter\(|data-role\s*=\s*"splitter"'
+    "Dialog"            = 'Html\.Kendo\(\)\.Dialog|\.kendoDialog\(|data-role\s*=\s*"dialog"'
+    "Validator"         = 'Html\.Kendo\(\)\.Validator|\.kendoValidator\('
+    "Notification"      = 'Html\.Kendo\(\)\.Notification|\.kendoNotification\('
+    "MaskedTextBox"     = 'Html\.Kendo\(\)\.MaskedTextBox|\.kendoMaskedTextBox\('
+    "DropDownTree"      = 'Html\.Kendo\(\)\.DropDownTree|\.kendoDropDownTree\('
+    "PivotGrid"         = 'Html\.Kendo\(\)\.PivotGrid|\.kendoPivotGrid\('
 }
 
-public sealed class ListTablesResponse
-{
-    [JsonPropertyName("tables")]
-    public List<DatabricksTableItem>? Tables { get; set; }
+$results = @()
 
-    [JsonPropertyName("next_page_token")]
-    public string? NextPageToken { get; set; }
+# Find files to scan
+$files = Get-ChildItem -Path $repoRoot -Recurse -File | Where-Object {
+    $fileExtensions -contains $_.Extension.ToLower()
 }
 
-public sealed class DatabricksViewInfo
-{
-    public string CatalogName { get; set; } = "";
-    public string SchemaName { get; set; } = "";
-    public string ViewName { get; set; } = "";
-    public string FullName { get; set; } = "";
-    public string? ViewDefinition { get; set; }
-}
+foreach ($file in $files) {
+    $relativePath = $file.FullName.Replace($repoRoot, "").TrimStart('\')
 
-public sealed class DatabricksUnityCatalogClient
-{
-    private readonly HttpClient _httpClient;
-    private readonly string _workspaceUrl;
+    # Try to infer project from first folder or nearest csproj
+    $projectName = ""
+    $projectFile = Get-ChildItem -Path $file.DirectoryName -Filter *.csproj -File -ErrorAction SilentlyContinue | Select-Object -First 1
 
-    public DatabricksUnityCatalogClient(string workspaceUrl, string token, HttpClient? httpClient = null)
-    {
-        _workspaceUrl = workspaceUrl.TrimEnd('/');
-        _httpClient = httpClient ?? new HttpClient();
-
-        _httpClient.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", token);
+    if ($projectFile) {
+        $projectName = [System.IO.Path]::GetFileNameWithoutExtension($projectFile.Name)
+    }
+    else {
+        $parts = $relativePath -split '[\\/]'
+        if ($parts.Count -gt 0) {
+            $projectName = $parts[0]
+        }
     }
 
-    public async Task<List<DatabricksViewInfo>> GetViewsInSchemaAsync(string catalogName, string schemaName)
-    {
-        var results = new List<DatabricksViewInfo>();
-        string? pageToken = null;
+    $matches = Select-String -Path $file.FullName -Pattern $generalPatterns -AllMatches
 
-        do
-        {
-            var url =
-                $"{_workspaceUrl}/api/2.1/unity-catalog/tables" +
-                $"?catalog_name={Uri.EscapeDataString(catalogName)}" +
-                $"&schema_name={Uri.EscapeDataString(schemaName)}";
+    foreach ($match in $matches) {
+        $lineText = $match.Line.Trim()
+        $detectedControls = @()
 
-            if (!string.IsNullOrWhiteSpace(pageToken))
-            {
-                url += $"&page_token={Uri.EscapeDataString(pageToken)}";
-            }
-
-            using var response = await _httpClient.GetAsync(url);
-            var json = await response.Content.ReadAsStringAsync();
-
-            response.EnsureSuccessStatusCode();
-
-            var payload = JsonSerializer.Deserialize<ListTablesResponse>(
-                json,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
-            if (payload?.Tables != null)
-            {
-                foreach (var item in payload.Tables)
-                {
-                    if (string.Equals(item.TableType, "VIEW", StringComparison.OrdinalIgnoreCase))
-                    {
-                        results.Add(new DatabricksViewInfo
-                        {
-                            CatalogName = item.CatalogName ?? catalogName,
-                            SchemaName = item.SchemaName ?? schemaName,
-                            ViewName = item.Name ?? "",
-                            FullName = item.FullName ?? $"{catalogName}.{schemaName}.{item.Name}",
-                            ViewDefinition = item.ViewDefinition
-                        });
-                    }
-                }
-            }
-
-            pageToken = payload?.NextPageToken;
-        }
-        while (!string.IsNullOrWhiteSpace(pageToken));
-
-        return results;
-    }
-}
-
------
-
-
-
-
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
-public static class FilterMerger
-{
-    public static List<Filter> MergeFilters(IEnumerable<Filter> filters)
-    {
-        if (filters == null)
-            return new List<Filter>();
-
-        var result = new List<Filter>();
-
-        // Keep filters that qualify for merge
-        var mergeCandidates = filters
-            .Where(CanBeMerged)
-            .GroupBy(f => new MergeKey(
-                f.Dimension,
-                f.Attribute,
-                f.FilterType,
-                f.ScalarValue))
-            .ToList();
-
-        foreach (var group in mergeCandidates)
-        {
-            var first = group.First();
-
-            var mergedValues = group
-                .SelectMany(f => GetAllValues(f))
-                .Where(v => v != null && !string.IsNullOrWhiteSpace(v.Value))
-                .GroupBy(v => new { v.Value, v.IsNumeric })
-                .Select(g => g.First())
-                .ToList();
-
-            var mergedFilter = new Filter
-            {
-                Dimension = first.Dimension,
-                Attribute = first.Attribute,
-                FilterType = first.FilterType,
-                SourceTableName = first.SourceTableName,
-                SourceColumnName = first.SourceColumnName,
-                ScalarValue = null,          // moved into Values
-                ScalarIsString = first.ScalarIsString,
-                Values = mergedValues
-            };
-
-            result.Add(mergedFilter);
-        }
-
-        // Keep all non-mergeable filters unchanged
-        var nonMergeCandidates = filters
-            .Where(f => !CanBeMerged(f));
-
-        result.AddRange(nonMergeCandidates);
-
-        return result;
-    }
-
-    private static bool CanBeMerged(Filter filter)
-    {
-        if (filter == null)
-            return false;
-
-        // Must have exactly one scalar value
-        if (string.IsNullOrWhiteSpace(filter.ScalarValue))
-            return false;
-
-        // Only merge filters that do not already have Values populated
-        if (filter.Values != null && filter.Values.Count > 0)
-            return false;
-
-        return !string.IsNullOrWhiteSpace(filter.Dimension)
-            && !string.IsNullOrWhiteSpace(filter.Attribute);
-    }
-
-    private static IEnumerable<FilterValue> GetAllValues(Filter filter)
-    {
-        var values = new List<FilterValue>();
-
-        if (!string.IsNullOrWhiteSpace(filter.ScalarValue))
-        {
-            values.Add(new FilterValue(filter.ScalarValue, !filter.ScalarIsString));
-        }
-
-        if (filter.Values != null && filter.Values.Count > 0)
-        {
-            values.AddRange(filter.Values.Where(v => v != null));
-        }
-
-        return values;
-    }
-
-    private sealed record MergeKey(
-        string? Dimension,
-        string? Attribute,
-        FilterType FilterType,
-        string? ScalarValue);
-}
-
-
-
-
-
-public static List<Filter> MergeFilters(IEnumerable<Filter> filters)
-{
-    if (filters == null)
-        return new List<Filter>();
-
-    var result = new List<Filter>();
-
-    var mergeCandidates = filters
-        .Where(CanBeMerged)
-        .GroupBy(f => new
-        {
-            f.Dimension,
-            f.Attribute,
-            f.FilterType
-        });
-
-    foreach (var group in mergeCandidates)
-    {
-        var first = group.First();
-
-        var mergedValues = group
-            .Select(f => new FilterValue(f.ScalarValue!, !f.ScalarIsString))
-            .GroupBy(v => new { v.Value, v.IsNumeric })
-            .Select(g => g.First())
-            .ToList();
-
-        result.Add(new Filter
-        {
-            Dimension = first.Dimension,
-            Attribute = first.Attribute,
-            FilterType = first.FilterType,
-            SourceTableName = first.SourceTableName,
-            SourceColumnName = first.SourceColumnName,
-            ScalarValue = null,
-            ScalarIsString = first.ScalarIsString,
-            Values = mergedValues
-        });
-    }
-
-    result.AddRange(filters.Where(f => !CanBeMerged(f)));
-
-    return result;
-}
-
-
-
-
-
-
-
-
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using YamlDotNet.RepresentationModel;
-using YamlDotNet.Serialization;
-using YamlDotNet.Core;
-
-public sealed class MeasuresYamlInjector
-{
-    public string Inject(
-        string template,
-        IEnumerable<MeasureMetadata> measures,
-        string filter = "",
-        IDictionary<string, string>? dimensionNameMap = null)
-    {
-        // Parse YAML template into DOM
-        var stream = new YamlStream();
-        stream.Load(new StringReader(template));
-
-        var root = (YamlMappingNode)stream.Documents[0].RootNode;
-
-        if (!string.IsNullOrEmpty(filter))
-        {
-            // 1) Inject/replace "filter"
-            var filterKey = new YamlScalarNode("filter");
-            var filterValue = new YamlScalarNode(filter ?? string.Empty)
-            {
-                Style = ScalarStyle.Folded
-            };
-
-            root.Children[filterKey] = filterValue;
-        }
-
-        // 2) Walk "dimensions" node and rename "name"
-        if (dimensionNameMap != null && dimensionNameMap.Count > 0)
-        {
-            RenameDimensionNames(root, dimensionNameMap);
-        }
-
-        // 3) Inject/replace "measures"
-        var measuresKey = new YamlScalarNode("measures");
-        var seq = new YamlSequenceNode();
-
-        if (measures != null)
-        {
-            foreach (var m in measures)
-            {
-                var measureMap = new YamlMappingNode
-                {
-                    { new YamlScalarNode("name"), new YamlScalarNode(m?.Name ?? string.Empty) },
-                    { new YamlScalarNode("expr"), new YamlScalarNode(m?.Base?.SqlExpression ?? string.Empty) }
-                };
-
-                seq.Add(measureMap);
+        foreach ($controlName in $controlPatterns.Keys) {
+            if ($lineText -match $controlPatterns[$controlName]) {
+                $detectedControls += $controlName
             }
         }
 
-        root.Children[measuresKey] = seq;
+        # Infer usage type
+        $usageType = "General Reference"
+        if ($lineText -match 'Html\.Kendo\(\)') {
+            $usageType = "MVC Wrapper"
+        }
+        elseif ($lineText -match '\.kendo[A-Za-z0-9_]+\(') {
+            $usageType = "JavaScript Initialization"
+        }
+        elseif ($lineText -match 'data-role\s*=') {
+            $usageType = "Markup Data Role"
+        }
+        elseif ($lineText -match 'Kendo\.Mvc|@progress/kendo-ui|kendo\.all|kendo\.common|kendo\.default') {
+            $usageType = "Library Reference"
+        }
 
-        // 4) Serialize only the root node
-        var serializer = new SerializerBuilder()
-            .DisableAliases()
-            .Build();
+        if ($detectedControls.Count -eq 0) {
+            $detectedControls = @("Unknown / General Kendo Reference")
+        }
 
-        using var sw = new StringWriter();
-        serializer.Serialize(sw, root);
-        return sw.ToString();
-    }
-
-    private static void RenameDimensionNames(
-        YamlMappingNode root,
-        IDictionary<string, string> dimensionNameMap)
-    {
-        var dimensionsKey = new YamlScalarNode("dimensions");
-
-        if (!root.Children.TryGetValue(dimensionsKey, out var dimensionsNode))
-            return;
-
-        if (dimensionsNode is not YamlSequenceNode dimensionsSequence)
-            return;
-
-        foreach (var item in dimensionsSequence.Children)
-        {
-            if (item is not YamlMappingNode dimensionMap)
-                continue;
-
-            var nameKey = new YamlScalarNode("name");
-
-            if (!dimensionMap.Children.TryGetValue(nameKey, out var currentNameNode))
-                continue;
-
-            var currentName = (currentNameNode as YamlScalarNode)?.Value;
-
-            if (string.IsNullOrWhiteSpace(currentName))
-                continue;
-
-            if (dimensionNameMap.TryGetValue(currentName, out var newName) &&
-                !string.IsNullOrWhiteSpace(newName))
-            {
-                dimensionMap.Children[nameKey] = new YamlScalarNode(newName);
+        foreach ($control in $detectedControls) {
+            $results += [PSCustomObject]@{
+                Project       = $projectName
+                FilePath      = $relativePath
+                FileName      = $file.Name
+                Extension     = $file.Extension
+                LineNumber    = $match.LineNumber
+                UsageType     = $usageType
+                Control       = $control
+                MatchedLine   = $lineText
             }
         }
     }
 }
+
+# Remove duplicates
+$results = $results | Sort-Object Project, FilePath, LineNumber, Control -Unique
+
+# Export CSV
+$results | Export-Csv -Path $outputCsv -NoTypeInformation -Encoding UTF8
+
+Write-Host "Scan complete. Results exported to: $outputCsv"
+Write-Host "Total findings: $($results.Count)"
+
+
+
+$summaryCsv = Join-Path $repoRoot "kendo_inventory_summary.csv"
+
+$results |
+    Group-Object Project, FilePath |
+    ForEach-Object {
+        $first = $_.Group | Select-Object -First 1
+        [PSCustomObject]@{
+            Project    = $first.Project
+            FilePath   = $first.FilePath
+            FileName   = $first.FileName
+            UsageTypes = ($_.Group.UsageType | Sort-Object -Unique) -join "; "
+            Controls   = ($_.Group.Control | Sort-Object -Unique) -join ", "
+            Hits       = $_.Count
+        }
+    } |
+    Sort-Object Project, FilePath |
+    Export-Csv -Path $summaryCsv -NoTypeInformation -Encoding UTF8
+
+Write-Host "Summary exported to: $summaryCsv"
