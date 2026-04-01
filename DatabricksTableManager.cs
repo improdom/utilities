@@ -1,156 +1,45 @@
-# Root folder of your cloned GitLab repo
-$repoRoot = "C:\Repos\Mars"
+Hi [Manager's Name],
 
-# Output CSV
-$outputCsv = Join-Path $repoRoot "kendo_inventory_detailed.csv"
+Following our recent discussions, I have completed a preliminary analysis to identify the areas within the MARS application where Kendo UI is currently in use. Please find attached an initial inventory outlining the impacted projects, pages, and components.
 
-# File types to scan
-$fileExtensions = @(
-    ".cshtml", ".aspx", ".ascx", ".html",
-    ".js", ".ts",
-    ".csproj", ".config", ".json"
-)
+Based on this initial assessment, I am estimating an overall effort of approximately **10 weeks** to complete the upgrade and stabilization activities. This estimate reflects not only the library upgrade itself, but also the required validation and remediation efforts across the application.
 
-# General Kendo patterns
-$generalPatterns = @(
-    'Html\.Kendo\(\)',
-    '\.kendo[A-Za-z0-9_]+\(',
-    'Kendo\.Mvc',
-    'kendo\.all',
-    'kendo\.common',
-    'kendo\.default',
-    '@progress/kendo-ui',
-    'data-role\s*=\s*"[^"]+"'
-)
+### High-Level Upgrade Plan
 
-# Known Kendo controls to identify
-$controlPatterns = @{
-    "Grid"              = 'Html\.Kendo\(\)\.Grid|\.kendoGrid\(|data-role\s*=\s*"grid"'
-    "DropDownList"      = 'Html\.Kendo\(\)\.DropDownList|\.kendoDropDownList\(|data-role\s*=\s*"dropdownlist"'
-    "ComboBox"          = 'Html\.Kendo\(\)\.ComboBox|\.kendoComboBox\(|data-role\s*=\s*"combobox"'
-    "MultiSelect"       = 'Html\.Kendo\(\)\.MultiSelect|\.kendoMultiSelect\(|data-role\s*=\s*"multiselect"'
-    "DatePicker"        = 'Html\.Kendo\(\)\.DatePicker|\.kendoDatePicker\(|data-role\s*=\s*"datepicker"'
-    "DateTimePicker"    = 'Html\.Kendo\(\)\.DateTimePicker|\.kendoDateTimePicker\(|data-role\s*=\s*"datetimepicker"'
-    "TimePicker"        = 'Html\.Kendo\(\)\.TimePicker|\.kendoTimePicker\(|data-role\s*=\s*"timepicker"'
-    "NumericTextBox"    = 'Html\.Kendo\(\)\.NumericTextBox|\.kendoNumericTextBox\(|data-role\s*=\s*"numerictextbox"'
-    "Window"            = 'Html\.Kendo\(\)\.Window|\.kendoWindow\(|data-role\s*=\s*"window"'
-    "Editor"            = 'Html\.Kendo\(\)\.Editor|\.kendoEditor\(|data-role\s*=\s*"editor"'
-    "TabStrip"          = 'Html\.Kendo\(\)\.TabStrip|\.kendoTabStrip\(|data-role\s*=\s*"tabstrip"'
-    "TreeView"          = 'Html\.Kendo\(\)\.TreeView|\.kendoTreeView\(|data-role\s*=\s*"treeview"'
-    "Upload"            = 'Html\.Kendo\(\)\.Upload|\.kendoUpload\(|data-role\s*=\s*"upload"'
-    "Chart"             = 'Html\.Kendo\(\)\.Chart|\.kendoChart\(|data-role\s*=\s*"chart"'
-    "Scheduler"         = 'Html\.Kendo\(\)\.Scheduler|\.kendoScheduler\(|data-role\s*=\s*"scheduler"'
-    "ListView"          = 'Html\.Kendo\(\)\.ListView|\.kendoListView\(|data-role\s*=\s*"listview"'
-    "AutoComplete"      = 'Html\.Kendo\(\)\.AutoComplete|\.kendoAutoComplete\(|data-role\s*=\s*"autocomplete"'
-    "PanelBar"          = 'Html\.Kendo\(\)\.PanelBar|\.kendoPanelBar\(|data-role\s*=\s*"panelbar"'
-    "Menu"              = 'Html\.Kendo\(\)\.Menu|\.kendoMenu\(|data-role\s*=\s*"menu"'
-    "Tooltip"           = 'Html\.Kendo\(\)\.Tooltip|\.kendoTooltip\(|data-role\s*=\s*"tooltip"'
-    "Splitter"          = 'Html\.Kendo\(\)\.Splitter|\.kendoSplitter\(|data-role\s*=\s*"splitter"'
-    "Dialog"            = 'Html\.Kendo\(\)\.Dialog|\.kendoDialog\(|data-role\s*=\s*"dialog"'
-    "Validator"         = 'Html\.Kendo\(\)\.Validator|\.kendoValidator\('
-    "Notification"      = 'Html\.Kendo\(\)\.Notification|\.kendoNotification\('
-    "MaskedTextBox"     = 'Html\.Kendo\(\)\.MaskedTextBox|\.kendoMaskedTextBox\('
-    "DropDownTree"      = 'Html\.Kendo\(\)\.DropDownTree|\.kendoDropDownTree\('
-    "PivotGrid"         = 'Html\.Kendo\(\)\.PivotGrid|\.kendoPivotGrid\('
-}
+The proposed approach includes the following key phases:
 
-$results = @()
+1. **Prerequisite – License Provisioning**
+   The upgrade to the latest version of Kendo UI requires a valid license. This is a prerequisite and is not included within the current estimate.
 
-# Find files to scan
-$files = Get-ChildItem -Path $repoRoot -Recurse -File | Where-Object {
-    $fileExtensions -contains $_.Extension.ToLower()
-}
+2. **Upgrade Implementation**
 
-foreach ($file in $files) {
-    $relativePath = $file.FullName.Replace($repoRoot, "").TrimStart('\')
+   * Upgrade Kendo UI libraries to the latest supported version
+   * Update project dependencies and resolve compatibility issues
+   * Refactor code where required (MVC wrappers, JavaScript initialization, and shared components)
 
-    # Try to infer project from first folder or nearest csproj
-    $projectName = ""
-    $projectFile = Get-ChildItem -Path $file.DirectoryName -Filter *.csproj -File -ErrorAction SilentlyContinue | Select-Object -First 1
+3. **Validation and Regression Testing**
 
-    if ($projectFile) {
-        $projectName = [System.IO.Path]::GetFileNameWithoutExtension($projectFile.Name)
-    }
-    else {
-        $parts = $relativePath -split '[\\/]'
-        if ($parts.Count -gt 0) {
-            $projectName = $parts[0]
-        }
-    }
+   * Perform comprehensive regression testing across all identified modules and pages
+   * Validate UI behavior, data binding, and user workflows
+   * Coordinate with QA and business stakeholders as needed
 
-    $matches = Select-String -Path $file.FullName -Pattern $generalPatterns -AllMatches
+4. **Defect Remediation**
 
-    foreach ($match in $matches) {
-        $lineText = $match.Line.Trim()
-        $detectedControls = @()
+   * Address issues identified during testing
+   * Stabilize affected components and ensure consistent behavior across the application
 
-        foreach ($controlName in $controlPatterns.Keys) {
-            if ($lineText -match $controlPatterns[$controlName]) {
-                $detectedControls += $controlName
-            }
-        }
+5. **Security Verification**
 
-        # Infer usage type
-        $usageType = "General Reference"
-        if ($lineText -match 'Html\.Kendo\(\)') {
-            $usageType = "MVC Wrapper"
-        }
-        elseif ($lineText -match '\.kendo[A-Za-z0-9_]+\(') {
-            $usageType = "JavaScript Initialization"
-        }
-        elseif ($lineText -match 'data-role\s*=') {
-            $usageType = "Markup Data Role"
-        }
-        elseif ($lineText -match 'Kendo\.Mvc|@progress/kendo-ui|kendo\.all|kendo\.common|kendo\.default') {
-            $usageType = "Library Reference"
-        }
+   * Confirm that reported vulnerabilities are fully remediated following the upgrade
+   * Validate against relevant security scan results
 
-        if ($detectedControls.Count -eq 0) {
-            $detectedControls = @("Unknown / General Kendo Reference")
-        }
+### Notes
 
-        foreach ($control in $detectedControls) {
-            $results += [PSCustomObject]@{
-                Project       = $projectName
-                FilePath      = $relativePath
-                FileName      = $file.Name
-                Extension     = $file.Extension
-                LineNumber    = $match.LineNumber
-                UsageType     = $usageType
-                Control       = $control
-                MatchedLine   = $lineText
-            }
-        }
-    }
-}
+* The attached inventory represents a **preliminary view** based on automated scanning and may be refined as we progress through deeper analysis.
+* Due to the use of shared layouts, scripts, and reusable components, the actual impact may extend beyond the explicitly identified pages, which has been factored into the estimate.
+* The timeline assumes standard availability of development and testing resources.
 
-# Remove duplicates
-$results = $results | Sort-Object Project, FilePath, LineNumber, Control -Unique
+Please let me know if you would like to review the inventory or discuss the approach in more detail.
 
-# Export CSV
-$results | Export-Csv -Path $outputCsv -NoTypeInformation -Encoding UTF8
-
-Write-Host "Scan complete. Results exported to: $outputCsv"
-Write-Host "Total findings: $($results.Count)"
-
-
-
-$summaryCsv = Join-Path $repoRoot "kendo_inventory_summary.csv"
-
-$results |
-    Group-Object Project, FilePath |
-    ForEach-Object {
-        $first = $_.Group | Select-Object -First 1
-        [PSCustomObject]@{
-            Project    = $first.Project
-            FilePath   = $first.FilePath
-            FileName   = $first.FileName
-            UsageTypes = ($_.Group.UsageType | Sort-Object -Unique) -join "; "
-            Controls   = ($_.Group.Control | Sort-Object -Unique) -join ", "
-            Hits       = $_.Count
-        }
-    } |
-    Sort-Object Project, FilePath |
-    Export-Csv -Path $summaryCsv -NoTypeInformation -Encoding UTF8
-
-Write-Host "Summary exported to: $summaryCsv"
+Best regards,
+Julio Diaz
