@@ -1,16 +1,29 @@
-Hi Venkat,
+Subject: Expansion of MRV Reconciliation Coverage – Next Iteration
 
-Could you please confirm the table name from which we should pick up the update? In your update statement you are referencing neu_dev_at40482_mtrc.cubiq_config.cubiq_metadata, but that table does not appear to exist.
+Hi Team,
 
-I see two other tables:
+As part of the CubIQ release plan, we are continuing to expand the reconciliation of MRV (Power BI measures) against the on-prem cube that CubIQ will replace.
 
-[cubiq].[cubiq_metadata] – this is the table currently referenced by the MRV Builder.
+So far, reconciliation has been limited to a subset of MRVs (MVP). The overall target remains to reconcile all 2,176 MRVs.
 
-[config].[cubiq_metadata] – I am not sure how this table is being used.
+Following a detailed analysis, we are now ready to significantly extend the reconciliation scope in the next iteration:
 
-For our side, the correct table is [cubiq].[cubiq_metadata]. Please confirm that your changes are applied to this table so we can remove the other table if it is not required.
+An additional 1,708 MRVs have been identified and can be immediately included in reconciliation.
+These include:
+Non-MVP filter MRVs previously excluded
+Most calculation-type MRVs (Calc types)
+The remaining gap is limited to 45 MRVs, primarily complex/custom calculation types, which will be addressed in the May release.
 
-Lokesh, we will also need to include this update in the SQL MI build so it can be deployed to the TEST lane tomorrow.
+This expansion represents a substantial increase in coverage and should allow us to begin a broader and more representative validation of CubIQ against the legacy cube.
 
-Thanks,
+I am attaching an Excel document that includes a pivot table with the detailed breakdown of MRVs by category and reconciliation eligibility.
+
+Next Steps
+QA team can begin preparing and executing reconciliation for the expanded MRV set.
+Please review the attached breakdown and flag any concerns or dependencies.
+We will continue to track and close the remaining 45 MRVs as part of the next release cycle.
+
+Please let me know if you have any questions or need additional details.
+
+Best regards,
 Julio Diaz
