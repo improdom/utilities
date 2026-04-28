@@ -1,18 +1,11 @@
-📝 Candidate Feedback – C# / .NET Evaluation
+I’ve completed the technical interview for the C#/.NET portion of the candidate.
 
-The candidate has good overall experience in the .NET ecosystem, primarily with legacy technologies such as Windows Forms, WPF, WCF, and .NET Framework 4. He provided relevant examples from past work and appears comfortable in traditional enterprise environments.
+Overall, the candidate has good experience in the .NET ecosystem, primarily focused on legacy technologies such as Windows Forms, WPF, WCF, and .NET Framework 4. He was able to provide relevant examples from past work and appears comfortable in traditional enterprise environments.
 
-However, there are gaps in core fundamentals, as he was unable to clearly explain async/await or differentiate between threads, tasks, and parallel execution. While coding and problem-solving were generally solid, he struggled with edge cases.
+However, there are gaps in core fundamentals, as he was unable to clearly explain concepts such as async/await and the differences between threads, tasks, and parallel execution. While his coding and problem-solving were generally solid, he struggled with edge cases.
 
-The candidate has limited hands-on experience with modern backend development, including REST APIs, .NET Core, and Azure. System design depth was moderate, and responses often remained high-level without strong technical detail. Communication was also a challenge, requiring questions to be simplified for clarity.
+Additionally, the candidate has limited hands-on experience with modern backend development, including REST APIs, .NET Core, and Azure. System design depth was moderate, and responses often remained high-level. Communication also required some clarification during the discussion.
 
-🚨 Key Concerns
-Gaps in core C# fundamentals
-Limited modern .NET / cloud experience
-Depth does not align with years of experience
-Communication clarity
-✅ Summary
-Strengths: Relevant experience, solid background in traditional .NET
-Weaknesses: Fundamentals, modern stack exposure, depth
-Level Fit: Junior to Mid-level
+Based on this, I would assess the candidate closer to a junior to mid-level profile, which does not align with the requirements for this role.
+
 Recommendation: No Hire
