@@ -1,7 +1,18 @@
-Risks and Considerations
-End-of-life application: The MARS application is approaching the end of its lifecycle and is planned to be replaced by CubiQ. Investing in a full upgrade may provide limited long-term value relative to the effort required.
-High regression risk: Kendo UI is widely used across the application, including shared layouts and common components, increasing the likelihood of widespread impact and unintended side effects.
-Limited documentation and inventory: Despite the preliminary scan, there may be indirect or dynamic usages that are not fully captured, potentially leading to gaps in testing and unexpected issues.
-Dependency compatibility: Upgrading Kendo may introduce compatibility issues with existing jQuery versions, custom scripts, or other legacy dependencies.
-Resource and timeline impact: The effort will require significant development and QA involvement, which may affect other priorities.
-Stability risk during transition: Given the application's current state, changes at this level may introduce instability in a system that is still in active use.
+📝 Candidate Feedback – C# / .NET Evaluation
+
+The candidate has good overall experience in the .NET ecosystem, primarily with legacy technologies such as Windows Forms, WPF, WCF, and .NET Framework 4. He provided relevant examples from past work and appears comfortable in traditional enterprise environments.
+
+However, there are gaps in core fundamentals, as he was unable to clearly explain async/await or differentiate between threads, tasks, and parallel execution. While coding and problem-solving were generally solid, he struggled with edge cases.
+
+The candidate has limited hands-on experience with modern backend development, including REST APIs, .NET Core, and Azure. System design depth was moderate, and responses often remained high-level without strong technical detail. Communication was also a challenge, requiring questions to be simplified for clarity.
+
+🚨 Key Concerns
+Gaps in core C# fundamentals
+Limited modern .NET / cloud experience
+Depth does not align with years of experience
+Communication clarity
+✅ Summary
+Strengths: Relevant experience, solid background in traditional .NET
+Weaknesses: Fundamentals, modern stack exposure, depth
+Level Fit: Junior to Mid-level
+Recommendation: No Hire
