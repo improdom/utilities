@@ -1,8 +1,4 @@
-[
-  {
-    "cob_date": "2026-05-09",
-    "desk": "Rates",
-    "risk_measure": "VaR",
-    "mrv_value": 12345.67
-  }
-]
+Key Questions from Anupam for MRV Reconciliation Readiness Toward the June Release
+What is the current level of MRV reconciliation coverage?
+Which MRVs are affected by scenario name discrepancies between on-prem and cloud platforms?
+What are the primary root causes driving the outstanding mismatches?
