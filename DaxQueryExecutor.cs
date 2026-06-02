@@ -1,4 +1,36 @@
 
+Socrates MDS CCY :=
+VAR MaxAbsForSocratesAcrossCurrency =
+    MAXX (
+        ALL ( 'Market Data Set'[MDS Currency] ),
+        CALCULATE (
+            [Abs],
+            'Slice'[Source System] = "Socrates",
+            REMOVEFILTERS ( 'Risk Measure' )
+        )
+    )
+
+VAR CurrentCurrencyAbs =
+    CALCULATE (
+        [Abs],
+        'Slice'[Source System] = "Socrates",
+        REMOVEFILTERS ( 'Risk Measure' )
+    )
+
+RETURN
+IF (
+    ISINSCOPE ( 'Market Data Set'[MDS Currency] ),
+    IF (
+        CurrentCurrencyAbs = MaxAbsForSocratesAcrossCurrency,
+        CurrentCurrencyAbs,
+        BLANK ()
+    ),
+    MaxAbsForSocratesAcrossCurrency
+)
+
+
+
+
 ┌────────────────────────────────────────────┐
 │            Reporting Framework             │
 └────────────────────────────────────────────┘
