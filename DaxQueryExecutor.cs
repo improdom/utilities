@@ -1,4 +1,52 @@
-IR Zero Delta Bond Future Basis =
+
+ARR v Govt Basis =
+VAR GovtSpreadRaw =
+    [IR Zero Delta - Govt]
+        + [IR Spread Funding Delta ARR]
+
+VAR Temp1 =
+    IF(
+        GovtSpreadRaw < 0,
+        -1,
+        1
+    )
+
+VAR Temp2 =
+    IF(
+        [IR Zero Delta - ARR] < 0,
+        -1,
+        1
+    )
+
+VAR Temp3 =
+    ABS(
+        COALESCE([IR Zero Delta - Govt], 0)
+            + COALESCE([IR Spread Funding Delta ARR], 0)
+    )
+
+VAR Temp4 =
+    ABS(
+        COALESCE([IR Zero Delta - ARR], 0)
+    )
+
+RETURN
+    IF(
+        ISBLANK(GovtSpreadRaw)
+            && ISBLANK([IR Zero Delta - ARR]),
+        BLANK(),
+        IF(
+            Temp1 = Temp2,
+            0,
+            MIN(Temp3, Temp4)
+        )
+    )
+    
+    
+    
+    
+    
+    
+    IR Zero Delta Bond Future Basis =
 VAR Temp1 =
     IF(
         [IR Zero Delta Base - Bond Futures] < 0,
