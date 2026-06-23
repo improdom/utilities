@@ -1,36 +1,17 @@
-IR Zero Delta Bond Future Basis =
 VAR Temp1 =
-    IF(
-        [IR Zero Delta Base - Bond Futures] < 0,
-        -1,
-        1
+    MINX (
+        CALCULATETABLE (
+            VALUES ( 'Scenario'[Stress Magnitude] ),
+            REMOVEFILTERS ( 'Scenario'[Scenario Name] ),
+            REMOVEFILTERS ( 'Scenario'[Stress Magnitude] ),
+            'Scenario'[Stress Magnitude Value] >= -0.15,
+            'Scenario'[Stress Magnitude Value] <= 0.15
+        ),
+        CALCULATE ( [Structured Product Delta Family] )
     )
-
-VAR Temp2 =
-    IF(
-        [IR Zero Delta Base - Govt./Treasury Bond] < 0,
-        -1,
-        1
-    )
-
-VAR Temp3 =
-    ABS(
-        COALESCE([IR Zero Delta Base - Bond Futures], 0)
-    )
-
-VAR Temp4 =
-    ABS(
-        COALESCE([IR Zero Delta Base - Govt./Treasury Bond], 0)
-    )
-
 RETURN
-    IF(
-        ISBLANK([IR Zero Delta Base - Bond Futures])
-            && ISBLANK([IR Zero Delta Base - Govt./Treasury Bond]),
-        BLANK(),
-        IF(
-            Temp1 = Temp2,
-            0,
-            MIN(Temp3, Temp4)
-        )
+    IF (
+        ISBLANK ( Temp1 ),
+        BLANK (),
+        MIN ( 0, Temp1 )
     )
