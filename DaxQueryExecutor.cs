@@ -1,3 +1,40 @@
+EQ Vega ex Funds/CB Dispersion =
+VAR IndexValue =
+    [EQ Vega ex Funds/CB - Index]
+
+VAR SingleStockValue =
+    [EQ Vega ex Funds/CB - Single Stock]
+
+VAR Temp1 =
+    IF(IndexValue < 0, -1, 1)
+
+VAR Temp2 =
+    IF(SingleStockValue < 0, -1, 1)
+
+VAR Temp3 =
+    ABS(COALESCE(IndexValue, 0))
+
+VAR Temp4 =
+    ABS(COALESCE(SingleStockValue, 0))
+
+RETURN
+    IF(
+        ISBLANK(IndexValue)
+            && ISBLANK(SingleStockValue),
+        BLANK(),
+        IF(
+            Temp1 = Temp2,
+            0,
+            MIN(Temp3, Temp4)
+        )
+    )
+
+
+
+
+
+
+
 ARR v Govt Basis =
 VAR GovtSpreadRaw =
     COALESCE([IR Zero Delta - Govt], 0)
