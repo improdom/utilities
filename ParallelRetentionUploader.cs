@@ -8,17 +8,27 @@ VAR Temp3 =
                 && 'Scenario'[Stress Magnitude] <= 0.20
                 && 'Scenario'[Stress Magnitude] <> 0
         ),
-        VAR Temp1 =
+        VAR NormalShock =
+            'Scenario'[Normal Shock]
+
+        VAR FXDelta =
             CALCULATE (
-                [FX Product Delta Primary and Translational],
-                'Scenario'[Scenario Name] = "Normal Shock"
+                [FX Product Delta Primary and Translational]
             )
+
+        VAR AdjustedFXRate =
+            CALCULATE (
+                [TV Change Product Delta Adjusted FX Rates]
+            )
+
+        VAR Temp1 =
+            FXDelta * NormalShock
 
         VAR Temp2 =
             IF (
-                ISBLANK ( [TV Change Product Delta Adjusted FX Rates] ),
+                ISBLANK ( AdjustedFXRate ),
                 BLANK (),
-                Temp1 + [TV Change Product Delta Adjusted FX Rates]
+                Temp1 + AdjustedFXRate
             )
 
         RETURN
