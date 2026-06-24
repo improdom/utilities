@@ -1,25 +1,33 @@
-ComplexCalc16 =
-VAR Dep1 = [Dependent Measure 1]
-VAR Dep2 = [Dependent Measure 2]
-VAR TVStress = [TV Change Credit Index Basis Stress Tight]
-RETURN
-    IF(
-        ISBLANK(Dep1) && ISBLANK(Dep2),
-        BLANK(),
-        IF(
-            ISBLANK(Dep1),
-            MIN(0, Dep2),
-            IF(
-                ISBLANK(TVStress),
-                MIN(0, Dep2),
-                MINX(
-                    {
-                        (0),
-                        (Dep1),
-                        (Dep2)
-                    },
-                    [Value]
-                )
+TV Change on FX Slide - +/-20% :=
+VAR Temp3 =
+    MINX (
+        FILTER (
+            ALL ( 'Scenario' ),
+            'Scenario'[Scenario Group] = "FX"
+                && 'Scenario'[Stress Magnitude] >= -0.20
+                && 'Scenario'[Stress Magnitude] <= 0.20
+                && 'Scenario'[Stress Magnitude] <> 0
+        ),
+        VAR Temp1 =
+            CALCULATE (
+                [FX Product Delta Primary and Translational],
+                'Scenario'[Scenario Name] = "Normal Shock"
             )
-        )
+
+        VAR Temp2 =
+            IF (
+                ISBLANK ( [TV Change Product Delta Adjusted FX Rates] ),
+                BLANK (),
+                Temp1 + [TV Change Product Delta Adjusted FX Rates]
+            )
+
+        RETURN
+            Temp2
+    )
+
+RETURN
+    IF (
+        ISBLANK ( Temp3 ),
+        BLANK (),
+        MIN ( 0, Temp3 )
     )
