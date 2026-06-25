@@ -1,43 +1,14 @@
-TV Change on FX Slide - +/-20% :=
-VAR Temp3 =
-    MINX (
-        FILTER (
-            ALL ( 'Scenario' ),
-            'Scenario'[Scenario Group] = "FX"
-                && 'Scenario'[Stress Magnitude] >= -0.20
-                && 'Scenario'[Stress Magnitude] <= 0.20
-                && 'Scenario'[Stress Magnitude] <> 0
-        ),
-        VAR NormalShock =
-            'Scenario'[Normal Shock]
+Hi Team,
 
-        VAR FXDelta =
-            CALCULATE (
-                [FX Product Delta Primary and Translational]
-            )
+While converting the Calc29 MRV measure, TV Change on FX Slide - +/-20%, from MDX to DAX, I identified a dependency on an SSAS Multidimensional member property:
 
-        VAR AdjustedFXRate =
-            CALCULATE (
-                [TV Change Product Delta Adjusted FX Rates]
-            )
+[Scenario].[Scenario Name].CURRENTMEMBER.PROPERTIES("Normal Shock")
 
-        VAR Temp1 =
-            FXDelta * NormalShock
+This property is used in the calculation to retrieve a value associated with each Scenario Name and multiply it by the FX Product Delta measure. However, this “Normal Shock” property is not currently available in the CubIQ Power BI semantic model.
 
-        VAR Temp2 =
-            IF (
-                ISBLANK ( AdjustedFXRate ),
-                BLANK (),
-                Temp1 + AdjustedFXRate
-            )
+To support an equivalent DAX implementation, I recommend adding this property as a numeric column in the Scenario dimension, preferably as a hidden field. This would allow the DAX measure to reference the value directly while keeping the model clean for end users.
 
-        RETURN
-            Temp2
-    )
+Without this column or an equivalent lookup table, the Calc29 logic cannot be fully reproduced in Power BI.
 
-RETURN
-    IF (
-        ISBLANK ( Temp3 ),
-        BLANK (),
-        MIN ( 0, Temp3 )
-    )
+Thanks,
+Julio
