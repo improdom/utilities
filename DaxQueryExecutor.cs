@@ -1,4 +1,32 @@
+
+
 Commodity Delta Spread - Ex ETP :=
+VAR Temp1 =
+    CALCULATE (
+        SUM ( Fact[ReportValue] ),
+        Fact[ReportValue] < 0
+    )
+
+VAR Temp2 =
+    CALCULATE (
+        SUM ( Fact[ReportValue] ) * -1,
+        Fact[ReportValue] < 0
+    )
+
+RETURN
+    IF (
+        ISBLANK ( Temp1 ) && ISBLANK ( Temp2 ),
+        BLANK (),
+        IF (
+            ISBLANK ( Temp1 ),
+            0,
+            IF (
+                ISBLANK ( Temp2 ),
+                0,
+                MIN ( Temp1, Temp2 )
+            )
+        )
+    )Commodity Delta Spread - Ex ETP :=
 VAR Temp1 =
     SUMX (
         VALUES ( 'Market Segment'[Market Segment Name] ),
