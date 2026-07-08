@@ -1,3 +1,50 @@
+Commodity Delta Spread - Ex ETP :=
+VAR Temp1 =
+    SUMX (
+        VALUES ( 'Market Segment'[Market Segment Name] ),
+        IF (
+            [Commodity Delta Net - Ex ETP] < 0,
+            [Commodity Delta Net - Ex ETP],
+            BLANK ()
+        )
+    )
+
+VAR Temp2 =
+    SUMX (
+        VALUES ( 'Market Segment'[Market Segment Name] ),
+        IF (
+            [Commodity Delta Net - Ex ETP] < 0,
+            [Commodity Delta Net - Ex ETP] * -1,
+            BLANK ()
+        )
+    )
+
+RETURN
+    IF (
+        ISBLANK ( Temp1 ) && ISBLANK ( Temp2 ),
+        BLANK (),
+        IF (
+            ISBLANK ( Temp1 ),
+            0,
+            IF (
+                ISBLANK ( Temp2 ),
+                0,
+                MIN ( Temp1, Temp2 )
+            )
+        )
+    )
+
+
+
+
+
+
+
+
+
+
+
+
 EQ Vega ex Funds/CB Dispersion =
 VAR IndexValue =
     [EQ Vega ex Funds/CB - Index]
