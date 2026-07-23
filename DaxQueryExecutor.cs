@@ -2,6 +2,8 @@ Subject: Proposed Approach for Report Publishing Enhancements
 
 Hi all,
 
+Following our architecture discussions, we are taking an approach that further improves the overall design by clearly separating report generation from deployment responsibilities. By extending the existing deployment service instead of introducing deployment logic into the Self-Service application, we can reduce complexity, improve maintainability, and leverage components that are already proven and in place.
+
 To meet the new report publishing requirements within our timeline, I'd like to propose splitting the implementation into two related but independent areas while leveraging the deployment service we already have in place.
 
 Self-Service – Responsible for generating the PBIP package based on the user's report definition (filters, visuals, configuration, etc.).
