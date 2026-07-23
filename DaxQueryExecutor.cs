@@ -7,3 +7,6 @@ Where both the workspace user and the new deployment have modified the same comp
 The proposed deployment flow would therefore be:
 
 Back up the current report to ADLS → detect changes since the previous deployment → merge non-conflicting changes → flag conflicts for review → validate and deploy.
+
+
+  We'll capture all the details in the epic and work with Karthick to ensure the design is fully documented.
