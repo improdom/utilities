@@ -1,10 +1,9 @@
-Hi Anup,
+Yes, we can retrieve and save the current report definition before each deployment. This would provide a recoverable snapshot of any changes made directly in the workspace.
 
-Thanks for highlighting this.
+We can then compare the current workspace definition with the last deployed version and the new version being released. Since PBIR stores pages, visuals, bookmarks, and other report components in separate structured files, changes made to different components could generally be merged automatically.
 
-We were already planning to use ADLS versioning as a backup mechanism to mitigate any potential GitLab or Gorman disruptions. Given the current limitation around GitLab service accounts and the need to rely on individual PATs, we'll explore extending the ADLS-based approach to provide similar traceability directly within ADLS, including version history, change details, and audit information.
+Where both the workspace user and the new deployment have modified the same component, the service should flag the conflict for review rather than overwrite either change automatically.
 
-Thanks for the suggestion.
+The proposed deployment flow would therefore be:
 
-Regards,
-Julio
+Back up the current report to ADLS → detect changes since the previous deployment → merge non-conflicting changes → flag conflicts for review → validate and deploy.
