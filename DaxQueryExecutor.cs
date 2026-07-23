@@ -1,4 +1,8 @@
-Hi Jay,
+one architectural suggestion I’d like us to consider is having the new deployment service own both the GitLab push and the Power BI publish.
+
+That would keep the two operations in sync and ensure that every report published to Power BI is first committed to GitLab for traceability. The report generator would remain focused on generating the report, while the deployment service would handle versioning and deployment.
+
+Let’s discuss the pros and cons tomorrow.Hi Jay,
 
 Could you please revisit the possibility of enabling Power BI Query Scale-Out at the tenant level?
 
