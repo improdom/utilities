@@ -1,12 +1,22 @@
-Yes, we can retrieve and save the current report definition before each deployment. This would provide a recoverable snapshot of any changes made directly in the workspace.
+Hi Anupam,
 
-We can then compare the current workspace definition with the last deployed version and the new version being released. Since PBIR stores pages, visuals, bookmarks, and other report components in separate structured files, changes made to different components could generally be merged automatically.
+I was thinking about another approach that could help preserve self-service changes while still allowing reports to be centrally managed.
 
-Where both the workspace user and the new deployment have modified the same component, the service should flag the conflict for review rather than overwrite either change automatically.
+Instead of generating the report entirely from metadata, we could use the current PBIR definition downloaded from the workspace as the starting point. Self-Service would expose only the relevant report structure (attributes and filters) to the user, and then patch those changes back into the original PBIR definition while preserving visuals, bookmarks, IDs, formatting, and all other report components.
 
-The proposed deployment flow would therefore be:
+The high-level flow would be:
 
-Back up the current report to ADLS → detect changes since the previous deployment → merge non-conflicting changes → flag conflicts for review → validate and deploy.
+Download the current PBIR definition from the workspace.
+Keep the original PBIR JSON as the base.
+Parse and extract only the attributes and filters that the Self-Service designer needs to display, together with any additional saved metadata.
+Allow the user to modify those elements.
+Patch the changes back into the original PBIR JSON.
+Preserve all other report components unchanged.
+Validate the updated report and redeploy it. As part of the validation, verify that all attributes required by existing visuals are still present. If any required attributes have been removed, notify the user of the potential breaking changes before deployment.
 
+This approach is technically feasible, but it would require enhancing Self-Service to support PBIR round-tripping instead of generating the report entirely from metadata.
 
-  We'll capture all the details in the epic and work with Karthick to ensure the design is fully documented.
+I think this would provide a cleaner way to preserve self-service changes while minimizing the risk of overwriting existing report customizations.
+
+Thanks,
+Julio
