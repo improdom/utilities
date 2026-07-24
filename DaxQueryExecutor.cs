@@ -1,4 +1,20 @@
-Hi Anupam,
+Subject: ADBC Migration Update – Validation Request
+
+Hi Jaya,
+
+I wanted to share a quick update on the Databricks ADBC migration.
+
+I updated the semantic model to use the ADBC connector by setting Implementation="2.0" for all Databricks connections. When running the model locally in Power BI Desktop, I was able to verify that it is using ADBC:
+
+* Databricks Query History identifies the driver as ADBCDatabricksDriver (instead of the Spark ODBC driver).
+* The previous Databricks warning indicating ODBC usage is no longer displayed.
+
+I have published a test semantic model named Cubiq_ADBC, which is running in DirectQuery mode.
+
+Could you please point the ERS report to this model and validate its behavior? In particular:
+
+* Verify in Databricks Query History that report queries are using ADBC (the source should show ADBCDatabricksDriver).
+* Let me know if you observe any performance differences or functional issues compared to the current model.Hi Anupam,
 
 I was thinking about another approach that could help preserve self-service changes while still allowing reports to be centrally managed.
 
