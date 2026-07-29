@@ -1,1 +1,7 @@
+PBIR Report Publishing with ADLS Version Management
+
+
+
+
+
 I've completed a prototype and validated the core functionality for managing PBIR file versioning using native Azure Blob Versioning. The prototype supports uploading, updating, downloading, restoring previous versions, and handling complete PBIR project structures while preserving folder hierarchy
