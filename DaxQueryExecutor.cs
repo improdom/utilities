@@ -1,3 +1,17 @@
+Hi Michal,
+
+Thanks for the clarification and for pointing me to the communications and instructions. I wasn’t aware this was the root cause, but we’ll update our repositories accordingly.
+
+Thanks for your help.
+
+Regards,
+Julio
+
+
+
+
+
+
 I need to write an c#?application which will run as a job at night at a scheduled time.
 This application responsibility to synchronize reports in pbir format currently deployed in power bi and service and similar files stored in ADLS.
 Basically, users will generate a report from an application named self-service, they will select the semantic model they want to run their reports on, apply filters, select attributes, etc. when they click on save a report definition in pbir is generated, published to power bi in a PPL environment, and files also uploaded to ADLS for tracking and traceability.
