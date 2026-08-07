@@ -1,10 +1,12 @@
 Hi Anup,
 
-As discussed, we’ll move forward with using Kubernetes to schedule the nightly execution of the background job, rather than using ADF.
+As discussed, we’ll move forward with setting up the nightly background job scheduling directly in Kubernetes.
 
-The QA team is currently triggering the job manually through Swagger, so I wanted to keep everyone aware that the automated scheduling is in progress. The additional time is mainly to set up the appropriate Kubernetes infrastructure, and the plan is to have this completed tomorrow.
+Since the plan is to migrate other similar scheduled jobs from ADF to Kubernetes, it makes sense to implement this job in Kubernetes from the beginning rather than introducing an ADF dependency that we would need to migrate later. This will keep the implementation aligned with the target architecture and avoid additional work in the future.
 
-Thanks for looking into this and helping us get the scheduling in place.
+QA is currently triggering the job manually through Swagger. The Kubernetes setup is in progress, with the plan to have the automated scheduling completed tomorrow.
+
+Thanks, Anup, for helping us get the appropriate infrastructure in place.
 
 Regards,
 Julio
