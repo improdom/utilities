@@ -1,3 +1,28 @@
+measures:
+
+  - name: Converted Reporting Value
+    expr: >
+      CASE
+        WHEN COUNT(DISTINCT report_currency.currency) = 1
+        THEN SUM(
+          source.reporting_value * report_currency.spot_value
+        )
+        ELSE SUM(
+          CASE
+            WHEN report_currency.currency = 'USD'
+            THEN source.reporting_value * report_currency.spot_value
+            ELSE 0
+          END
+        )
+
+  - name: EQ Delta Gross UBSInstID
+    expr: MEASURE(`Converted Reporting Value`)
+
+
+
+
+
+
 #!/usr/bin/env pwsh
 
 # Fetch Secrets script for MR Marvel API
