@@ -1,3 +1,12 @@
+
+using System.Text.RegularExpressions;
+
+string input = "ABC,DEF, GHI,JKL";
+
+string[] values = Regex.Split(input, @",(?! )");
+
+
+
 measures:
 
   - name: Converted Reporting Value
