@@ -1,4 +1,18 @@
-Hi team,
+    https://learn.microsoft.com/dotnet/core/compatibility/10
+
+      https://learn.microsoft.com/aspnet/core/breaking-changes/10/overview?view=aspnetcore-10.0
+
+https://learn.microsoft.com/ef/core/what-is-new/ef-core-10.0/breaking-changes
+
+
+
+      
+  
+  
+  
+  
+  
+  Hi team,
 
 We’ve completed the service inventory and agreed on the SDK. As we continue upgrading our ten services from .NET 8 to .NET 10, please focus on these next steps:
 
