@@ -1,3 +1,16 @@
+Hi team,
+
+We’ve completed the service inventory and agreed on the SDK. As we continue upgrading our ten services from .NET 8 to .NET 10, please focus on these next steps:
+
+* Check that each service’s NuGet packages and dependencies support .NET 10.
+* Review the applicable .NET 10⁠￼, ASP.NET Core 10⁠￼, and, where relevant, EF Core 10⁠￼ breaking changes.
+* Test key service behaviors, including authentication, APIs, data access, messaging, and performance.
+* Deploy in stages, monitor each release, and have a rollback plan.
+
+Please share any compatibility issues, test results, or deployment concerns so we can coordinate the rollout.
+
+
+
 
 using System.Text.RegularExpressions;
 
