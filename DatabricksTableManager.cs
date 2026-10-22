@@ -10,3 +10,10 @@ Thanks, Anup, for helping us get the appropriate infrastructure in place.
 
 Regards,
 Julio
+
+
+
+"chat.plugins.enabled": true,
+"chat.pluginLocations": {
+    "C:/Users/cesardju/Dev/HVE CORE/hve-plugin": true
+}
