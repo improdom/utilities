@@ -1,3 +1,28 @@
+Subject: Copilot HVE Core bootcamp: key takeaways and proposed next step
+
+Hi [Name],
+
+I attended the Copilot HVE Core bootcamp. As the firm works out how to integrate AI into the software development lifecycle, Microsoft is recommending HVE Core as an approach.
+
+Where we are today: We use Copilot as an assistant for individual developers, helping them write code faster.
+
+What HVE Core is: A framework from Microsoft for running the whole software lifecycle with AI agents, not just coding. Agents handle research, planning, implementation, and review. Standards, security requirements, and compliance checks are built into the workflow, and people stay responsible for judgment and sign-off. It also keeps one shared record of the problem and plan that business, engineering, and risk can all see.
+
+Where this could take us: Moving from individual productivity to a consistent, governed way for whole teams to work with AI. That fits the direction of small pods of engineers working closely with users, and it works on existing systems as well as new builds.
+
+Challenges: The main challenge is changing how we work. To get the full benefit, everyone involved in the software lifecycle would need to use HVE Core and its AI agents, not just developers. That means new habits, training, and tooling. The business and the product manager would also need to work directly alongside the pods and contribute to a shared, structured record of requirements and plans.
+
+Proposed next step: A short demo on a real market risk use case, with synthetic data, to give us a practical view of how well the approach fits our work, followed by a presentation to the team. Could we find 15 minutes to agree on the use case?
+
+Best regards,
+[Name]
+
+
+
+
+
+
+
 # Self-Service Power BI Report Deployment Design
 
 ## 1. Overview
