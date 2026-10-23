@@ -1,3 +1,8 @@
+
+Proposed next step: I will prepare a presentation for the team. The application we built in the bootcamp was a fictional scenario, made complex on purpose so we would have to use the tool, and it is hard to relate to our daily work. So I will build a small application around a real use case that we all know, to show how the approach works in practice
+
+
+
 Subject: Copilot HVE Core bootcamp: key takeaways and proposed next step
 
 Hi [Name],
