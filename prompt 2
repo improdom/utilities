@@ -1,23 +1,14 @@
-I want to clarify the scope.
+The React dashboard should support both automatic and manual refresh.
 
-My objective is to implement the complete MRV Builder Execution Monitoring solution, including:
+Requirements:
+- Automatically refresh execution status every 30 seconds while the dashboard is open.
+- Provide a manual Refresh button.
+- Display the current duration of executions with Running status.
+- Stop polling when the dashboard is not active, where practical.
+- Avoid unnecessary API requests.
 
-1. C# service integration to track execution status, start time, end time, duration, and errors.
-2. SQL Managed Instance storage for execution history.
-3. REST API to retrieve execution information.
-4. React dashboard with an execution history grid, status indicators, sorting, filtering, pagination, and execution details.
-5. Basic monitoring functionality, including manual refresh and error visibility.
+Please treat this as the final functional clarification.
 
-This is the initial project scope, not a future enhancement.
+We have sufficient information to proceed. Consolidate the complete requirements, document any remaining technical assumptions for RPI Research, and prepare the handoff to RPI.
 
-I already have a clear technical direction and do not want to spend time on extensive Design Thinking or business discovery.
-
-Please consolidate these requirements into a structured document with functional requirements, nonfunctional requirements, and acceptance criteria.
-
-Identify only critical missing information or decisions that could affect implementation.
-
-Then prepare the requirements for handoff to RPI Research.
-
-The complete solution should be researched and planned together, but implementation should be divided into manageable tasks.
-
-Do not implement anything yet.
+Do not proceed to additional Design Thinking methods.
