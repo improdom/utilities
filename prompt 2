@@ -1,17 +1,23 @@
-I am the Chapter Lead for the Data Aggregation team within Market Risk Platforms. My team is responsible for developing and maintaining components including MRV Builder.
-
-I have direct knowledge of the MRV Builder architecture, its scheduled execution, and its role in our platform.
+I want to narrow the scope to the initial requirement: implementing execution monitoring for MRV Builder.
 
 MRV Builder is an existing C# service scheduled to run every Saturday.
 
-Our objective is to improve operational monitoring and visibility into its executions.
+The requirement is to persist execution information in Azure SQL Managed Instance, including:
 
-Currently, we want to introduce a mechanism to track execution history, including start time, end time, execution status, duration, and failure details.
+- Unique execution ID
+- Component name
+- Execution start timestamp
+- Execution end timestamp
+- Execution status (Running, Completed, Failed)
+- Execution duration
+- Error details when execution fails
 
-We also want to provide a React-based monitoring dashboard where users can view execution history, filter records, and investigate failures.
+Each execution must have its own record to maintain execution history.
 
-We have identified Azure SQL Managed Instance as the proposed storage solution.
+For now, exclude the React UI, REST API, dashboards, notifications, and other enhancements.
 
-I would like to keep this requirements discovery focused and practical, since we already have a clear initial business objective and proposed technical approach.
+I do not need further business discovery or Design Thinking methods. The requirement is sufficiently defined.
 
-Please help identify missing requirements, clarify acceptance criteria, and prepare a structured requirements document suitable for handoff to the RPI workflow.
+Please prepare a concise, structured requirement with acceptance criteria, suitable for handoff to RPI Research.
+
+Do not implement anything yet.
