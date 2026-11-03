@@ -1,28 +1,17 @@
-For this demo, I want to implement the complete MRV Builder Execution Monitoring solution with all the functional requirements previously defined.
+The RPI Research phase completed successfully, and the implementation plan was generated.
 
-**Environment**
-- The React application and REST API will run locally on localhost.
-- Authentication and authorization are not required for this demo.
-- No login, identity provider integration, or role-based access control is needed.
+However, the standard Plan critique was consumed during preflight without evaluating the plan or generating a critique artifact.
 
-**Functional Requirements**
-- Use real execution history stored in SQL Managed Instance.
-- Track execution start time, end time, duration, status, and errors.
-- Display execution history in the React dashboard.
-- Support filtering, sorting, pagination, and execution details.
-- Display full exception details for troubleshooting.
-- Support automatic refresh every 30 seconds and manual refresh.
-- Include the ability to manually trigger MRV Builder execution through the existing API, as specified in the original requirements.
-- Reuse the existing UI styles, fonts, colors, and components from the reference repository.
+I want to recover from this workflow issue without losing the completed work.
 
-**Implementation Constraints**
-- Do not remove or defer any functional requirements because authentication is excluded.
-- Do not use mock data as a substitute for the real SQL MI integration.
-- Keep the React frontend and REST API accessible only through localhost for this demo.
-- Do not introduce authentication or authorization infrastructure at this stage.
-- Ensure that the manual execution trigger is available only from the local demo environment and cannot be accessed remotely.
-- Avoid logging or exposing credentials and other secrets in exception details.
+Please:
 
-Authentication and authorization can be implemented later when the application is prepared for deployment to a shared environment.
+1. Preserve the existing research, requirements, and implementation plan artifacts.
+2. Investigate the supported HVE Core recovery procedure for a critique gate that was consumed during preflight.
+3. Determine whether a new RPI task identity is required.
+4. If a new task is required, explain how to initialize it using the existing research and plan.
+5. Ensure the new task performs a proper critique of the plan before implementation.
+6. Do not modify the existing RPI state manually or bypass the critique gate.
+7. Do not begin implementation until the plan has passed validation.
 
-Please continue with the complete implementation plan, preserving all functional requirements and excluding only authentication and authorization for this localhost demo.
+My goal is to continue the MRV Builder Execution Monitoring project without repeating completed research unnecessarily.
