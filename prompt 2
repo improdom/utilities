@@ -1,14 +1,26 @@
-The React dashboard should support both automatic and manual refresh.
+**Additional Requirement: UI Design Consistency**
 
-Requirements:
-- Automatically refresh execution status every 30 seconds while the dashboard is open.
-- Provide a manual Refresh button.
-- Display the current duration of executions with Running status.
-- Stop polling when the dashboard is not active, where practical.
-- Avoid unnecessary API requests.
+The new MRV Builder React dashboard must follow the existing UI design standards used in another repository.
 
-Please treat this as the final functional clarification.
+Reference repository:
+[INSERT REPOSITORY NAME OR LOCAL PATH]
 
-We have sufficient information to proceed. Consolidate the complete requirements, document any remaining technical assumptions for RPI Research, and prepare the handoff to RPI.
+During research:
 
-Do not proceed to additional Design Thinking methods.
+1. Analyze the existing React application in the reference repository.
+2. Identify the UI framework and component libraries currently used.
+3. Identify existing colors, typography, fonts, spacing, icons, and layout conventions.
+4. Identify reusable components, particularly data grids, tables, filters, buttons, status indicators, and detail views.
+5. Investigate existing CSS, SCSS, theme files, design tokens, and shared UI packages.
+6. Identify opportunities to reuse existing components instead of recreating them.
+7. Document any dependencies or constraints associated with reusing these styles.
+
+**Expected Outcome**
+
+The MRV Builder dashboard should have a consistent look and feel with the existing application.
+
+Prefer existing UI components, themes, and styling conventions over introducing new libraries or creating a separate design system.
+
+Include the findings and recommendations in the RPI Research document.
+
+Do not modify application code during research.
