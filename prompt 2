@@ -1,39 +1,28 @@
-/rpi-research
+For this demo, I want to implement the complete MRV Builder Execution Monitoring solution with all the functional requirements previously defined.
 
-Research the MRV Builder Execution Monitoring solution.
+**Environment**
+- The React application and REST API will run locally on localhost.
+- Authentication and authorization are not required for this demo.
+- No login, identity provider integration, or role-based access control is needed.
 
-Use these existing documents as the primary inputs:
+**Functional Requirements**
+- Use real execution history stored in SQL Managed Instance.
+- Track execution start time, end time, duration, status, and errors.
+- Display execution history in the React dashboard.
+- Support filtering, sorting, pagination, and execution details.
+- Display full exception details for troubleshooting.
+- Support automatic refresh every 30 seconds and manual refresh.
+- Include the ability to manually trigger MRV Builder execution through the existing API, as specified in the original requirements.
+- Reuse the existing UI styles, fonts, colors, and components from the reference repository.
 
-.copilot-tracking/dt/mrv-execution-monitoring/method-01-scope/requirements-handoff.md
+**Implementation Constraints**
+- Do not remove or defer any functional requirements because authentication is excluded.
+- Do not use mock data as a substitute for the real SQL MI integration.
+- Keep the React frontend and REST API accessible only through localhost for this demo.
+- Do not introduce authentication or authorization infrastructure at this stage.
+- Ensure that the manual execution trigger is available only from the local demo environment and cannot be accessed remotely.
+- Avoid logging or exposing credentials and other secrets in exception details.
 
-.copilot-tracking/dt/mrv-execution-monitoring/method-01-scope/rpi-research-brief.md
+Authentication and authorization can be implemented later when the application is prepared for deployment to a shared environment.
 
-Read both documents completely before beginning research.
-
-
-**Additional Requirement: UI Design Consistency**
-
-The new MRV Builder React dashboard must follow the existing UI design standards used in another repository.
-
-Reference repository:
-[INSERT REPOSITORY NAME OR LOCAL PATH]
-
-During research:
-
-1. Analyze the existing React application in the reference repository.
-2. Identify the UI framework and component libraries currently used.
-3. Identify existing colors, typography, fonts, spacing, icons, and layout conventions.
-4. Identify reusable components, particularly data grids, tables, filters, buttons, status indicators, and detail views.
-5. Investigate existing CSS, SCSS, theme files, design tokens, and shared UI packages.
-6. Identify opportunities to reuse existing components instead of recreating them.
-7. Document any dependencies or constraints associated with reusing these styles.
-
-**Expected Outcome**
-
-The MRV Builder dashboard should have a consistent look and feel with the existing application.
-
-Prefer existing UI components, themes, and styling conventions over introducing new libraries or creating a separate design system.
-
-Include the findings and recommendations in the RPI Research document.
-
-Do not modify application code during research.
+Please continue with the complete implementation plan, preserving all functional requirements and excluding only authentication and authorization for this localhost demo.
