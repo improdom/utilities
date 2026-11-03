@@ -1,0 +1,22 @@
+I want to develop the requirements for a new MRV Builder Execution Monitoring solution.
+
+MRV Builder is an existing C# service scheduled to execute every Saturday.
+
+We want to introduce execution tracking using Azure SQL Managed Instance and provide a React-based dashboard where users can monitor execution history, status, duration, and failures.
+
+Help me define and refine the requirements before starting development.
+
+Act as a requirements discovery coach:
+
+1. Ask me questions to clarify the business needs.
+2. Identify missing functional and nonfunctional requirements.
+3. Challenge assumptions and identify potential risks.
+4. Help distinguish essential functionality from optional enhancements.
+5. Help define acceptance criteria.
+6. Help identify logical implementation workstreams.
+
+Use the appropriate HVE Core Design Thinking methods.
+
+Do not implement anything yet. I want to understand and validate the requirements first.
+
+Once the requirements are sufficiently clear, help prepare a structured handoff suitable for RPI Research.
