@@ -1,17 +1,35 @@
-The RPI Research phase completed successfully, and the implementation plan was generated.
+I need to implement the MRV Builder Execution Monitoring solution.
 
-However, the standard Plan critique was consumed during preflight without evaluating the plan or generating a critique artifact.
+The HVE Core RPI workflow completed Research and generated an implementation plan, but its internal critique workflow encountered a state-management error.
 
-I want to recover from this workflow issue without losing the completed work.
+I want to continue development using standard GitHub Copilot Agent Mode.
 
-Please:
+Please locate and read these existing artifacts:
 
-1. Preserve the existing research, requirements, and implementation plan artifacts.
-2. Investigate the supported HVE Core recovery procedure for a critique gate that was consumed during preflight.
-3. Determine whether a new RPI task identity is required.
-4. If a new task is required, explain how to initialize it using the existing research and plan.
-5. Ensure the new task performs a proper critique of the plan before implementation.
-6. Do not modify the existing RPI state manually or bypass the critique gate.
-7. Do not begin implementation until the plan has passed validation.
+- mrv-execution-monitoring-research.md
+- mrv-execution-monitoring-plan.md
+- requirements-handoff.md
+- rpi-research-brief.md
 
-My goal is to continue the MRV Builder Execution Monitoring project without repeating completed research unnecessarily.
+Use them as the primary context.
+
+Requirements:
+- Complete C# execution tracking
+- Real SQL MI execution history
+- REST API
+- React monitoring dashboard
+- Existing UBS UWR styling and AG Grid
+- Automatic and manual refresh
+- Manual MRV Builder execution triggering
+- Localhost-only demo
+- No authentication or authorization for this demo
+
+First, independently review the existing plan for technical issues, missing requirements, and risks.
+
+Then implement the solution in manageable phases, starting with execution tracking and SQL MI integration.
+
+Preserve existing MRV Builder behavior and reuse existing components wherever possible.
+
+Add appropriate tests and validate each phase before proceeding.
+
+Do not modify the HVE Core workflow state or bypass its blocked critique. This is a separate development workflow.
