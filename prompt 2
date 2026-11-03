@@ -1,3 +1,16 @@
+/rpi-research
+
+Research the MRV Builder Execution Monitoring solution.
+
+Use these existing documents as the primary inputs:
+
+.copilot-tracking/dt/mrv-execution-monitoring/method-01-scope/requirements-handoff.md
+
+.copilot-tracking/dt/mrv-execution-monitoring/method-01-scope/rpi-research-brief.md
+
+Read both documents completely before beginning research.
+
+
 **Additional Requirement: UI Design Consistency**
 
 The new MRV Builder React dashboard must follow the existing UI design standards used in another repository.
