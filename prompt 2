@@ -1,0 +1,17 @@
+I am the Chapter Lead for the Data Aggregation team within Market Risk Platforms. My team is responsible for developing and maintaining components including MRV Builder.
+
+I have direct knowledge of the MRV Builder architecture, its scheduled execution, and its role in our platform.
+
+MRV Builder is an existing C# service scheduled to run every Saturday.
+
+Our objective is to improve operational monitoring and visibility into its executions.
+
+Currently, we want to introduce a mechanism to track execution history, including start time, end time, execution status, duration, and failure details.
+
+We also want to provide a React-based monitoring dashboard where users can view execution history, filter records, and investigate failures.
+
+We have identified Azure SQL Managed Instance as the proposed storage solution.
+
+I would like to keep this requirements discovery focused and practical, since we already have a clear initial business objective and proposed technical approach.
+
+Please help identify missing requirements, clarify acceptance criteria, and prepare a structured requirements document suitable for handoff to the RPI workflow.
