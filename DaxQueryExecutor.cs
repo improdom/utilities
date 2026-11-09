@@ -1,4 +1,20 @@
-    https://learn.microsoft.com/dotnet/core/compatibility/10
+
+Hi DevOps team,
+
+Could you please create a GitLab repository named `mr-marvel-agentic-sdlc-toolkit` in the Marvel project group?
+
+The repository will give the Marvel team a central place to version and manage our AI development tools and their configuration, including guardrails, workflow rules, and VS Code setup\. We’ll use DevPod to make these resources available in developers’ workspaces\. HVE Core will be the first pilot, and we’ll use the same setup for other tools or custom agents the team adopts\.
+
+Please share the repository URL once it’s ready\.
+
+Thanks,
+Julio
+
+
+
+
+
+https://learn.microsoft.com/dotnet/core/compatibility/10
 
       https://learn.microsoft.com/aspnet/core/breaking-changes/10/overview?view=aspnetcore-10.0
 
