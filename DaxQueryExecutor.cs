@@ -1,3 +1,15 @@
+I evaluated various tools, including HVE Core and SpecKit, for AI-assisted development in Market Risk. I built an MRV Builder proof of concept to demonstrate how HVE Core supports research, planning, and implementation. I presented the approach to more than 50 developers on the Marvel team. A pilot is underway to evaluate how HVE Core fits the team’s development workflow.
+
+To support the pilot, I validated a repeatable setup using internal GitLab and DevPod. Developers can install HVE Core in VS Code from a repository that DevPod clones as part of workspace setup.
+
+I implemented unit tests for MRV Builder and the CubIQ Power BI Semantic Model, achieving over 80% code coverage on both projects. I also helped plan and increase test coverage for other Marvel API projects, including Risk Monitoring Service and Orchestrator.
+
+
+
+
+
+
+
 
 Hi DevOps team,
 
