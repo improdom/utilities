@@ -1,5 +1,11 @@
-I saw an opportunity to make AI-assisted development a repeatable part of how the Marvel team delivers software. I evaluated HVE Core and SpecKit and used HVE Core to build an MRV Builder proof of concept. This gave the team a practical example of how AI agents can support research, planning, and implementation, with developers reviewing the plan and validating the changes.
+Behaior Innovation
+I saw an opportunity to make AI-assisted development a repeatable part of how the Marvel team delivers software. I explored HVE Core and SpecKit, then used HVE Core to demonstrate how developers could use AI agents for research, planning, and implementation while reviewing plans and validating changes themselves. I discussed the approach with colleagues and management, including which agents would be most useful to start with and how to assess Copilot usage costs.
 
-I implemented and validated a distribution process using internal GitLab and DevPod. DevPod clones the repository during workspace setup, giving developers a consistent way to access the AI tools and install HVE Core in VS Code. I coordinated with DevOps on a central repository to version the team’s tools, configurations, workflow instructions, and guardrails. The approach can be reused as the team adopts other tools and custom agents.
+To help the team put the approach into practice, I implemented and validated a distribution process through internal GitLab and DevPod. This gives developers a consistent way to access the tools in their workspaces and provides a way to version and share workflow instructions and guardrails. I’m preparing Confluence guidance to support the pilot and help colleagues apply the workflow in their own work.
 
-I demonstrated the workflow to more than 50 Marvel developers and discussed practical adoption questions with colleagues and management, including which agents to start with and how to assess usage costs. A small-group pilot is underway to evaluate how HVE Core fits the team’s day-to-day work, and I’m preparing Confluence guidance so colleagues can reproduce the setup and use the workflow consistently.
+  Innvation
+  I tested HVE Core on a concrete Market Risk use case by building an MRV Builder proof of concept. The experiment demonstrated that I could use the framework to research the requirements, develop an implementation plan, and build working functionality. I also verified that DevPod could clone the toolkit from internal GitLab and that HVE Core could be installed in VS Code from that checkout.
+
+During demo preparation, I used approximately 1–2% of my Copilot credit allowance, which gave us an initial usage data point for the evaluation. I shared the working example and lessons learned with more than 50 Marvel developers. A small-group pilot is underway to assess how the workflow fits day-to-day development.
+
+  
